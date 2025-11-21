@@ -72,7 +72,7 @@ Respond with ONLY the JSON object, nothing else.`,
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.5, // Balanced creativity and structure
-      maxTokens: 2000,
+      maxTokens: 5000, // Increased to handle complex goals with many tasks
     });
 
     // Parse output and create tasks (simplified - in production would parse structured output)

@@ -103,6 +103,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
       console.log(`[RunAgentProcessor] TaskPlanner completed for goal ${payload.context.goal_id}`);
       console.log(`[RunAgentProcessor] TaskPlanner output preview: ${(output.output || '').substring(0, 300)}`);
       await this.handleTaskPlannerOutput(output, payload.context.goal_id as string);
+      // TaskPlanner output is saved inside handleTaskPlannerOutput, so skip the normal save below
     }
 
     // Save agent output to blackboard if task_id provided
@@ -241,14 +242,16 @@ export class RunAgentProcessor extends BaseJobProcessor {
     if (jsonResult && Array.isArray(jsonResult.tasks)) {
       // Process JSON tasks
       console.log(`[TaskPlanner] Processing ${jsonResult.tasks.length} tasks from JSON`);
-      for (const rawTask of jsonResult.tasks) {
+      for (let i = 0; i < jsonResult.tasks.length; i++) {
+        const rawTask = jsonResult.tasks[i];
         if (!rawTask) {
-          console.log(`[TaskPlanner] Skipping null/undefined task`);
+          console.log(`[TaskPlanner] Skipping null/undefined task at index ${i}`);
           continue;
         }
         const summary = (rawTask.summary || rawTask.description || rawTask.title || '').trim();
+        console.log(`[TaskPlanner] Task ${i + 1}: "${summary.substring(0, 80)}..." (length: ${summary.length})`);
         if (summary.length < 10) {
-          console.log(`[TaskPlanner] Skipping task with summary too short: "${summary}"`);
+          console.log(`[TaskPlanner] Skipping task ${i + 1} with summary too short: "${summary}"`);
           continue;
         }
         
@@ -280,9 +283,11 @@ export class RunAgentProcessor extends BaseJobProcessor {
         }
         
         if (skipReason) {
-          console.log(`[TaskPlanner] Skipping invalid task from JSON: "${summary.substring(0, 60)}..." - reason: ${skipReason}`);
+          console.log(`[TaskPlanner] Skipping invalid task ${i + 1} from JSON: "${summary.substring(0, 60)}..." - reason: ${skipReason}`);
           continue;
         }
+        
+        console.log(`[TaskPlanner] Accepting task ${i + 1}: "${summary.substring(0, 60)}..."`);
 
         const priorityLower = (rawTask.priority || '').toString().toLowerCase();
         let taskPriority: 'high' | 'medium' | 'low' = 'medium';
@@ -575,16 +580,30 @@ export class RunAgentProcessor extends BaseJobProcessor {
 
     console.log(`[TaskPlanner] Total tasks to create: ${tasks.length}`);
     
+    // Always save TaskPlanner output to blackboard (linked to goal)
+    try {
+      await blackboardService.create({
+        type: 'agent_output',
+        summary: `Output from ${output.agent_id}`,
+        dimensions: {
+          agent_id: output.agent_id,
+          model_id: output.model_id,
+          status: 'completed',
+          goal_id: goalId,
+          ...(output.metadata || {}),
+        },
+        links: { parents: [goalId] },
+        detail: {
+          content: output.output,
+        },
+      });
+      console.log(`[TaskPlanner] Saved output to blackboard for goal ${goalId}`);
+    } catch (error) {
+      console.error(`[TaskPlanner] Error saving output to blackboard:`, error);
+    }
+    
     if (tasks.length === 0) {
       console.warn(`[TaskPlanner] No tasks found in output. Output was: ${taskText.substring(0, 500)}`);
-      // Still save the output for debugging
-      await blackboardService.createAgentOutput(
-        output.agent_id,
-        output.model_id,
-        goalId,
-        output.output,
-        output.metadata
-      );
       return;
     }
 
@@ -676,14 +695,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
       }
     }
 
-    // Also save the full output as agent output for reference
-    await blackboardService.createAgentOutput(
-      output.agent_id,
-      output.model_id,
-      goalId,
-      output.output,
-      output.metadata
-    );
+    // Output already saved above
   }
 }
 
