@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     const parentId = searchParams.get('parent_id');
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
+    const orderBy = searchParams.get('order_by');
+    const orderDirection = searchParams.get('order_direction');
 
     const query: BlackboardQuery = {};
 
@@ -35,6 +37,14 @@ export async function GET(request: NextRequest) {
 
     if (offset) {
       query.offset = parseInt(offset, 10);
+    }
+
+    if (orderBy) {
+      query.order_by = orderBy as 'created_at' | 'updated_at';
+    }
+
+    if (orderDirection) {
+      query.order_direction = orderDirection as 'asc' | 'desc';
     }
 
     const items = await blackboardService.query(query);

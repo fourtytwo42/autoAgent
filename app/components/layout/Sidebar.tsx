@@ -10,12 +10,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronLeft, ChevronRight, MessageSquare, ClipboardList, Bot, Brain, Settings, Clock, CheckSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, ClipboardList, Bot, Brain, Settings, Clock, CheckSquare, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
   { name: 'Conversation', href: '/', icon: MessageSquare },
-  { name: 'Blackboard', href: '/blackboard', icon: ClipboardList },
+  { name: 'Blackboard View', href: '/blackboard-view', icon: BookOpen },
+  { name: 'Blackboard Explorer', href: '/blackboard', icon: ClipboardList },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Agents', href: '/agents', icon: Bot },
   { name: 'Models', href: '/models', icon: Brain },
