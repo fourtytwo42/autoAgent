@@ -127,9 +127,109 @@ export default function BlackboardViewPage() {
     return key.endsWith('_id') || key === 'id' || key.endsWith('_ids');
   };
 
+  // Check if a dimension key is a reference to another entity
+  const isReferenceKey = (key: string): boolean => {
+    return isIdKey(key) || 
+           key === 'agent_id' || 
+           key === 'model_name' || 
+           key === 'model_provider' ||
+           key === 'agent_name' ||
+           key === 'provider';
+  };
+
+  // Handle navigation for agent IDs
+  const handleAgentClick = (agentId: string) => {
+    router.push(`/agents/${agentId}`);
+  };
+
+  // Handle navigation for model references
+  const handleModelClick = async (modelName?: string, modelProvider?: string, modelId?: string) => {
+    if (modelId && isUUID(modelId)) {
+      // If we have a model_id UUID, try to find it in blackboard first
+      handleItemClick(modelId);
+    } else if (modelName || modelProvider) {
+      // Search for model-related items in blackboard
+      try {
+        const queryParams = new URLSearchParams();
+        if (modelName) queryParams.set('summary', modelName);
+        if (modelProvider) queryParams.set('dimensions', JSON.stringify({ provider: modelProvider }));
+        
+        const response = await fetch(`/api/blackboard?${queryParams.toString()}`);
+        const data = await response.json();
+        
+        // Also try to find in models API
+        const modelsResponse = await fetch('/api/models');
+        const modelsData = await modelsResponse.json();
+        const matchingModel = modelsData.models?.find((m: any) => 
+          (modelName && m.name === modelName) || 
+          (modelProvider && m.provider === modelProvider)
+        );
+        
+        if (matchingModel) {
+          // Navigate to models page with filter or show model info
+          router.push(`/models`);
+        } else if (data.items && data.items.length > 0) {
+          // Navigate to first matching blackboard item
+          handleItemClick(data.items[0].id);
+        } else {
+          // Navigate to models page
+          router.push(`/models`);
+        }
+      } catch (error) {
+        console.error('Error searching for model:', error);
+        router.push(`/models`);
+      }
+    }
+  };
+
   // Render a dimension value, making IDs clickable
   const renderDimensionValue = (key: string, value: any): React.ReactNode => {
     const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    
+    // Handle agent_id - navigate to agent page
+    if (key === 'agent_id' && typeof value === 'string') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAgentClick(value);
+          }}
+          className="text-primary hover:underline font-medium cursor-pointer"
+        >
+          {valueStr}
+        </button>
+      );
+    }
+    
+    // Handle model_name - search for model
+    if (key === 'model_name' && typeof value === 'string') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleModelClick(value, undefined, undefined);
+          }}
+          className="text-primary hover:underline font-medium cursor-pointer"
+        >
+          {valueStr}
+        </button>
+      );
+    }
+    
+    // Handle model_provider - search for model
+    if ((key === 'model_provider' || key === 'provider') && typeof value === 'string') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleModelClick(undefined, value, undefined);
+          }}
+          className="text-primary hover:underline font-medium cursor-pointer"
+        >
+          {valueStr}
+        </button>
+      );
+    }
     
     // If it's an ID key and the value is a UUID, make it clickable
     if (isIdKey(key) && typeof value === 'string' && isUUID(value)) {
@@ -478,17 +578,34 @@ export default function BlackboardViewPage() {
                         {Object.entries(item.dimensions).slice(0, 3).map(([key, value]) => {
                           const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
                           const displayValue = valueStr.length > 20 ? valueStr.substring(0, 20) + '...' : valueStr;
-                          const isClickable = isIdKey(key) && typeof value === 'string' && isUUID(value);
+                          
+                          // Check if this is clickable
+                          const isClickableId = isIdKey(key) && typeof value === 'string' && isUUID(value);
+                          const isClickableAgent = key === 'agent_id' && typeof value === 'string';
+                          const isClickableModel = (key === 'model_name' || key === 'model_provider' || key === 'provider') && typeof value === 'string';
+                          const isClickable = isClickableId || isClickableAgent || isClickableModel;
+                          
+                          const handleClick = (e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            if (isClickableAgent) {
+                              handleAgentClick(value as string);
+                            } else if (isClickableModel) {
+                              if (key === 'model_name') {
+                                handleModelClick(value as string, undefined, undefined);
+                              } else {
+                                handleModelClick(undefined, value as string, undefined);
+                              }
+                            } else if (isClickableId) {
+                              handleItemClick(value as string);
+                            }
+                          };
                           
                           return (
                             <Badge 
                               key={key} 
                               variant="outline" 
                               className={`text-xs ${isClickable ? 'cursor-pointer hover:bg-primary/10' : ''}`}
-                              onClick={isClickable ? (e) => {
-                                e.stopPropagation();
-                                handleItemClick(value);
-                              } : undefined}
+                              onClick={isClickable ? handleClick : undefined}
                             >
                               {key}: {isClickable ? (
                                 <span className="text-primary font-medium">{displayValue}</span>
