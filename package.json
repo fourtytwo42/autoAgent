@@ -1,0 +1,40 @@
+{
+  "name": "autoagent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/pg": "^8.10.9",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
+    "@vitest/coverage-v8": "^1.0.4",
+    "supertest": "^6.3.3",
+    "@types/supertest": "^6.0.2",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^14.0.0"
+  }
+}
+
