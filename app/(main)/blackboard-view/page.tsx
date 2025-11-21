@@ -32,10 +32,28 @@ export default function BlackboardViewPage() {
   const [relatedItems, setRelatedItems] = useState<BlackboardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRelated, setLoadingRelated] = useState(false);
+  const [agentNames, setAgentNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchAllItems();
+    fetchAgentNames();
   }, []);
+
+  const fetchAgentNames = async () => {
+    try {
+      const response = await fetch('/api/agents');
+      if (response.ok) {
+        const data = await response.json();
+        const namesMap: Record<string, string> = {};
+        data.agents?.forEach((agent: any) => {
+          namesMap[agent.id] = agent.id; // Use ID as name, or could use description
+        });
+        setAgentNames(namesMap);
+      }
+    } catch (error) {
+      console.error('Error fetching agent names:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedItem) {
@@ -498,48 +516,91 @@ export default function BlackboardViewPage() {
                       // If we found structured tasks, render them specially
                       if (parsedTasks && parsedTasks.length > 0 && selectedItem.dimensions?.agent_id === 'TaskPlanner') {
                         const goalId = selectedItem.links?.parents?.[0];
-                        return (
-                          <div className="space-y-4">
-                            <div className="text-sm text-muted-foreground mb-4">
-                              TaskPlanner created {parsedTasks.length} task{parsedTasks.length !== 1 ? 's' : ''}:
-                            </div>
-                            <div className="space-y-3">
-                              {parsedTasks.map((task: any, idx: number) => {
-                                const taskNumber = task.number || idx + 1;
-                                return (
-                                  <Card
-                                    key={idx}
-                                    className="cursor-pointer hover:bg-muted/50 transition-colors border-border"
-                                    onClick={async () => {
-                                      await handleDependencyTaskClick(taskNumber, goalId);
-                                    }}
-                                  >
-                                    <CardContent className="p-4">
-                                      <div className="flex items-start justify-between gap-4">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <Badge className="bg-green-500/20 text-green-600 border-green-500/50">
-                                              Task {taskNumber}
-                                            </Badge>
-                                            {task.priority && (
-                                              <Badge variant="outline" className="text-xs">
-                                                {task.priority}
-                                              </Badge>
-                                            )}
-                                            {task.task_type && (
-                                              <Badge variant="outline" className="text-xs">
-                                                {task.task_type}
-                                              </Badge>
-                                            )}
-                                            {task.agent_count && (
-                                              <Badge variant="outline" className="text-xs">
-                                                {task.agent_count} agent{task.agent_count !== 1 ? 's' : ''}
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <p className="text-sm font-medium text-foreground mb-2">
-                                            {task.summary || 'No summary'}
-                                          </p>
+                        
+                        // Component to render a task with assigned agents
+                        const TaskCard = ({ task, taskNumber, goalId }: { task: any; taskNumber: number; goalId?: string }) => {
+                          const [assignedAgents, setAssignedAgents] = useState<string[]>([]);
+                          const [loadingAgents, setLoadingAgents] = useState(true);
+                          
+                          useEffect(() => {
+                            const fetchTaskAgents = async () => {
+                              try {
+                                const taskQueryParams = new URLSearchParams();
+                                taskQueryParams.set('type', 'task');
+                                if (goalId) {
+                                  taskQueryParams.set('parent_id', goalId);
+                                }
+                                const taskResponse = await fetch(`/api/blackboard?${taskQueryParams.toString()}&limit=1000`);
+                                const taskData = await taskResponse.json();
+                                const actualTask = taskData.items?.find((item: BlackboardItem) => 
+                                  item.dimensions?.task_number === taskNumber
+                                );
+                                if (actualTask) {
+                                  const agents = actualTask.dimensions?.assigned_agents || 
+                                    (actualTask.dimensions?.assigned_agent ? [actualTask.dimensions.assigned_agent] : []);
+                                  setAssignedAgents(agents);
+                                }
+                              } catch (e) {
+                                console.error('Error fetching task for agents:', e);
+                              } finally {
+                                setLoadingAgents(false);
+                              }
+                            };
+                            
+                            fetchTaskAgents();
+                          }, [taskNumber, goalId]);
+                          
+                          return (
+                            <Card
+                              className="cursor-pointer hover:bg-muted/50 transition-colors border-border"
+                              onClick={async () => {
+                                await handleDependencyTaskClick(taskNumber, goalId);
+                              }}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                      <Badge className="bg-green-500/20 text-green-600 border-green-500/50">
+                                        Task {taskNumber}
+                                      </Badge>
+                                      {task.priority && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {task.priority}
+                                        </Badge>
+                                      )}
+                                      {task.task_type && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {task.task_type}
+                                        </Badge>
+                                      )}
+                                      {loadingAgents ? (
+                                        <Badge variant="outline" className="text-xs">
+                                          Loading agents...
+                                        </Badge>
+                                      ) : assignedAgents.length > 0 ? (
+                                        assignedAgents.map((agentId: string) => (
+                                          <Badge
+                                            key={agentId}
+                                            variant="outline"
+                                            className="text-xs cursor-pointer hover:bg-primary/10"
+                                            onClick={async (e) => {
+                                              e.stopPropagation();
+                                              handleAgentClick(agentId);
+                                            }}
+                                          >
+                                            {agentNames[agentId] || agentId}
+                                          </Badge>
+                                        ))
+                                      ) : task.agent_count ? (
+                                        <Badge variant="outline" className="text-xs">
+                                          {task.agent_count} agent{task.agent_count !== 1 ? 's' : ''} (not assigned yet)
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                    <p className="text-sm font-medium text-foreground mb-2">
+                                      {task.summary || 'No summary'}
+                                    </p>
                                           {task.dependencies && Array.isArray(task.dependencies) && task.dependencies.length > 0 && (
                                             <div className="flex items-center gap-2 mt-2">
                                               <span className="text-xs text-muted-foreground">Depends on:</span>
@@ -565,8 +626,26 @@ export default function BlackboardViewPage() {
                                     </CardContent>
                                   </Card>
                                 );
-                              })}
-                            </div>
+                              };
+                              
+                              return (
+                                <div className="space-y-4">
+                                  <div className="text-sm text-muted-foreground mb-4">
+                                    TaskPlanner created {parsedTasks.length} task{parsedTasks.length !== 1 ? 's' : ''}:
+                                  </div>
+                                  <div className="space-y-3">
+                                    {parsedTasks.map((task: any, idx: number) => {
+                                      const taskNumber = task.number || idx + 1;
+                                      return (
+                                        <TaskCard
+                                          key={idx}
+                                          task={task}
+                                          taskNumber={taskNumber}
+                                          goalId={goalId}
+                                        />
+                                      );
+                                    })}
+                                  </div>
                             <div className="mt-4 pt-4 border-t border-border">
                               <details className="text-sm">
                                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
