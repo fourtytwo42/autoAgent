@@ -23,6 +23,7 @@ import { checkTaskCompletion } from './taskCompletion';
 import { cleanupCompletedTasks, cleanupStuckJobs } from './taskCleanup';
 import { jobQueue } from '@/src/jobs/queue';
 import { jobScheduler } from '@/src/jobs/scheduler';
+import { parseJsonOutput, extractTextFromJson } from '@/src/utils/jsonParser';
 
 export class RunAgentProcessor extends BaseJobProcessor {
   type: JobType = 'run_agent';
@@ -138,18 +139,34 @@ export class RunAgentProcessor extends BaseJobProcessor {
     if (payload.agent_id === 'Summarizer' && payload.context?.agent_output_id) {
       const agentOutputId = payload.context.agent_output_id as string;
       try {
+        console.log(`[RunAgentProcessor] Summarizer processing output for agent_output ${agentOutputId}`);
+        console.log(`[RunAgentProcessor] Summarizer raw output: ${output.output.substring(0, 200)}...`);
         const agentOutput = await blackboardService.findById(agentOutputId);
         if (agentOutput) {
           // Extract summary from JSON output if available
           let summaryText = output.output;
           try {
             // Try to parse as JSON (Summarizer returns JSON)
-            const jsonMatch = output.output.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.summary && typeof parsed.summary === 'string') {
-                summaryText = parsed.summary;
+            const parseResult = parseJsonOutput(output.output);
+            if (parseResult.success && parseResult.data) {
+              const jsonData = parseResult.data as any;
+              if (jsonData.summary && typeof jsonData.summary === 'string') {
+                summaryText = jsonData.summary;
                 console.log(`[RunAgentProcessor] Extracted summary from JSON: ${summaryText.substring(0, 100)}...`);
+              } else {
+                // If no summary field, try to extract text content
+                summaryText = extractTextFromJson(jsonData);
+                console.log(`[RunAgentProcessor] Extracted summary from JSON content: ${summaryText.substring(0, 100)}...`);
+              }
+            } else {
+              // Try regex fallback
+              const jsonMatch = output.output.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.summary && typeof parsed.summary === 'string') {
+                  summaryText = parsed.summary;
+                  console.log(`[RunAgentProcessor] Extracted summary from JSON (regex): ${summaryText.substring(0, 100)}...`);
+                }
               }
             }
           } catch (e) {
@@ -157,8 +174,14 @@ export class RunAgentProcessor extends BaseJobProcessor {
             console.log(`[RunAgentProcessor] Using raw output as summary (not JSON): ${summaryText.substring(0, 100)}...`);
           }
           
+          // Ensure summary is not empty
+          if (!summaryText || summaryText.trim().length === 0) {
+            summaryText = agentOutput.summary || `Output from ${agentOutput.dimensions?.agent_id || 'agent'}`;
+            console.log(`[RunAgentProcessor] Summary was empty, using fallback: ${summaryText}`);
+          }
+          
           // Update the agent_output item with the summary
-          await blackboardService.update(agentOutputId, {
+          const updateResult = await blackboardService.update(agentOutputId, {
             summary: summaryText, // Use extracted summary
             dimensions: {
               ...(agentOutput.dimensions || {}),
@@ -166,12 +189,20 @@ export class RunAgentProcessor extends BaseJobProcessor {
               summary_key_points: output.metadata?.key_points || [],
             },
           });
-          console.log(`[RunAgentProcessor] Updated agent output ${agentOutputId} with summary: ${summaryText.substring(0, 100)}...`);
+          
+          if (updateResult) {
+            console.log(`[RunAgentProcessor] Successfully updated agent output ${agentOutputId} with summary: ${summaryText.substring(0, 100)}...`);
+          } else {
+            console.error(`[RunAgentProcessor] Update returned null for agent output ${agentOutputId}`);
+          }
         } else {
           console.error(`[RunAgentProcessor] Agent output ${agentOutputId} not found for Summarizer`);
         }
       } catch (error) {
         console.error(`[RunAgentProcessor] Error updating agent output with summary:`, error);
+        if (error instanceof Error) {
+          console.error(`[RunAgentProcessor] Error stack:`, error.stack);
+        }
       }
       // Summarizer doesn't need to save its own output, just update the existing one
       return;
@@ -184,6 +215,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
       // Save output linked to task
       try {
         console.log(`[RunAgentProcessor] Saving output for task ${taskId} from agent ${payload.agent_id}`);
+        console.log(`[RunAgentProcessor] Output preview (first 500 chars): ${output.output.substring(0, 500)}`);
         const agentOutput = await blackboardService.createAgentOutput(
           output.agent_id,
           output.model_id,
@@ -196,6 +228,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
         );
 
         console.log(`[RunAgentProcessor] Created agent output ${agentOutput.id} for task ${taskId}`);
+        console.log(`[RunAgentProcessor] Saved content length: ${output.output.length} chars`);
 
         // Schedule Summarizer to create a summary of this output
         const summarizerJob = await jobQueue.createRunAgentJob(
