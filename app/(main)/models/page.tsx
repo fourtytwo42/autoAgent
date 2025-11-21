@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Card, Chip, Progress } from '@heroui/react';
 
 interface Model {
   id: string;
@@ -36,94 +37,123 @@ export default function ModelsPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-white mb-2">Model Dashboard</h1>
-        <p className="text-gray-400">View and manage all registered models</p>
+    <div style={{ padding: '24px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{
+          fontSize: '30px',
+          fontWeight: 'bold',
+          color: 'white',
+          marginBottom: '8px',
+        }}>Model Dashboard</h1>
+        <p style={{ color: '#a1a1aa' }}>View and manage all registered models</p>
       </div>
       {loading ? (
-        <div className="text-gray-400 text-center py-12">Loading models...</div>
+        <div style={{
+          color: '#a1a1aa',
+          textAlign: 'center',
+          padding: '48px 0',
+        }}>Loading models...</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-700">
-          <table className="min-w-full border-collapse bg-gray-800">
-            <thead>
-              <tr className="bg-gray-700">
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Name</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Provider</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Enabled</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Modalities</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Quality</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Reliability</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Latency (ms)</th>
-                <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Cost/1k</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <Table aria-label="Models table">
+            <TableHeader>
+              <TableColumn>Name</TableColumn>
+              <TableColumn>Provider</TableColumn>
+              <TableColumn>Enabled</TableColumn>
+              <TableColumn>Modalities</TableColumn>
+              <TableColumn>Quality</TableColumn>
+              <TableColumn>Reliability</TableColumn>
+              <TableColumn>Latency (ms)</TableColumn>
+              <TableColumn>Cost/1k</TableColumn>
+            </TableHeader>
+            <TableBody>
               {models.map((model) => (
-                <tr key={model.id} className="hover:bg-gray-700 transition-colors">
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200 font-medium">{model.name}</td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                    <span className="px-2 py-1 bg-gray-600 rounded text-xs">{model.provider}</span>
-                  </td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
+                <TableRow key={model.id}>
+                  <TableCell>
+                    <span style={{
+                      fontWeight: '500',
+                      color: '#e4e4e7',
+                    }}>{model.name}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="sm" variant="flat" color="default">
+                      {model.provider}
+                    </Chip>
+                  </TableCell>
+                  <TableCell>
                     {model.is_enabled ? (
-                      <span className="text-green-400">✓ Enabled</span>
+                      <Chip color="success" size="sm" variant="flat">✓ Enabled</Chip>
                     ) : (
-                      <span className="text-gray-500">Disabled</span>
+                      <Chip size="sm" variant="flat">Disabled</Chip>
                     )}
-                  </td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                    <div className="flex gap-2">
+                  </TableCell>
+                  <TableCell>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       {model.modalities.map((mod) => (
-                        <span key={mod} className="px-2 py-1 bg-gray-600 rounded text-xs">
+                        <Chip key={mod} size="sm" variant="flat" color="default">
                           {mod}
-                        </span>
+                        </Chip>
                       ))}
                     </div>
-                  </td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-700 rounded-full h-2 max-w-[60px]">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${(model.quality_score || 0) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm">{(model.quality_score * 100).toFixed(0)}%</span>
+                  </TableCell>
+                  <TableCell>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      minWidth: '100px',
+                    }}>
+                      <Progress
+                        value={(model.quality_score || 0) * 100}
+                        color="primary"
+                        size="sm"
+                        style={{ flex: 1, maxWidth: '60px' }}
+                      />
+                      <span style={{
+                        fontSize: '14px',
+                        color: '#e4e4e7',
+                      }}>{(model.quality_score * 100).toFixed(0)}%</span>
                     </div>
-                  </td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-700 rounded-full h-2 max-w-[60px]">
-                        <div
-                          className="bg-green-500 h-2 rounded-full"
-                          style={{ width: `${(model.reliability_score || 0) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm">{(model.reliability_score * 100).toFixed(0)}%</span>
+                  </TableCell>
+                  <TableCell>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      minWidth: '100px',
+                    }}>
+                      <Progress
+                        value={(model.reliability_score || 0) * 100}
+                        color="success"
+                        size="sm"
+                        style={{ flex: 1, maxWidth: '60px' }}
+                      />
+                      <span style={{
+                        fontSize: '14px',
+                        color: '#e4e4e7',
+                      }}>{(model.reliability_score * 100).toFixed(0)}%</span>
                     </div>
-                  </td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
+                  </TableCell>
+                  <TableCell style={{ color: '#e4e4e7' }}>
                     {model.avg_latency_ms ? (
                       <span>{model.avg_latency_ms.toLocaleString()}ms</span>
                     ) : (
-                      <span className="text-gray-500">N/A</span>
+                      <span style={{ color: '#71717a' }}>N/A</span>
                     )}
-                  </td>
-                  <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
+                  </TableCell>
+                  <TableCell style={{ color: '#e4e4e7' }}>
                     {model.cost_per_1k_tokens ? (
                       <span>${model.cost_per_1k_tokens.toFixed(4)}</span>
                     ) : (
-                      <span className="text-gray-500">N/A</span>
+                      <span style={{ color: '#71717a' }}>N/A</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
 }
-

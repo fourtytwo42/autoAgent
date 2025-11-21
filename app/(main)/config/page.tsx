@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Button from '../../components/ui/Button';
+import { Card, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem, Checkbox } from '@heroui/react';
 
 interface Provider {
   id: string;
@@ -184,8 +185,8 @@ export default function ConfigPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="text-gray-400">Loading providers...</div>
+      <div style={{ padding: '24px' }}>
+        <div style={{ color: '#a1a1aa' }}>Loading providers...</div>
       </div>
     );
   }
@@ -195,146 +196,212 @@ export default function ConfigPage() {
     const registeredModelIds = new Set(registeredModels.map(m => m.name));
 
     return (
-      <div className="p-6">
-        <div className="mb-6">
-          <button
+      <div style={{ padding: '24px' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <Button
+            variant="ghost"
             onClick={() => setSelectedProvider(null)}
-            className="text-blue-400 hover:text-blue-300 mb-4 flex items-center gap-2"
+            style={{ marginBottom: '16px', color: '#60a5fa' }}
           >
-            <span>←</span> Back to Providers
-          </button>
-          <h1 className="text-3xl font-bold text-white mb-2">{provider?.name} Models</h1>
-          <p className="text-gray-400">
+            ← Back to Providers
+          </Button>
+          <h1 style={{
+            fontSize: '30px',
+            fontWeight: 'bold',
+            color: 'white',
+            marginBottom: '8px',
+          }}>{provider?.name} Models</h1>
+          <p style={{ color: '#a1a1aa' }}>
             {provider?.configured 
               ? 'Available models from this provider'
               : 'Configure this provider in your .env file to see available models'}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+          gap: '24px',
+        }}>
           {/* Available Models */}
-          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Available Models</h2>
+          <Card style={{ padding: '24px' }}>
+            <h2 style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              color: 'white',
+              marginBottom: '16px',
+            }}>Available Models</h2>
             {loadingModels ? (
-              <div className="text-gray-400">Loading models...</div>
+              <div style={{ color: '#a1a1aa' }}>Loading models...</div>
             ) : providerModels.length === 0 ? (
-              <div className="text-gray-400 text-center py-8">
+              <div style={{
+                color: '#a1a1aa',
+                textAlign: 'center',
+                padding: '32px 0',
+              }}>
                 {provider?.configured 
                   ? 'No models found or provider unavailable'
                   : 'Provider not configured'}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {providerModels.map((model) => {
                   const isRegistered = registeredModelIds.has(model.name);
                   return (
-                    <div
+                    <Card
                       key={model.id}
-                      className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors"
+                      isPressable
+                      style={{
+                        padding: '16px',
+                        backgroundColor: '#27272a',
+                        border: '1px solid #3f3f46',
+                      }}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-white mb-1">
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <h3 style={{
+                            fontWeight: '500',
+                            color: 'white',
+                            marginBottom: '4px',
+                          }}>
                             {model.display_name || model.name}
                           </h3>
-                          <div className="flex flex-wrap gap-2 mt-2">
+                          <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                            marginTop: '8px',
+                          }}>
                             {model.modalities?.map((mod) => (
-                              <span
-                                key={mod}
-                                className="px-2 py-1 bg-gray-600 text-gray-300 rounded text-xs"
-                              >
+                              <Chip key={mod} size="sm" variant="flat" color="default">
                                 {mod}
-                              </span>
+                              </Chip>
                             ))}
                           </div>
                           {model.context_window && (
-                            <div className="text-xs text-gray-400 mt-2">
+                            <div style={{
+                              fontSize: '12px',
+                              color: '#a1a1aa',
+                              marginTop: '8px',
+                            }}>
                               Context: {model.context_window.toLocaleString()} tokens
                             </div>
                           )}
                         </div>
                         {isRegistered ? (
-                          <span className="px-3 py-1 bg-green-900 text-green-300 rounded text-sm">
+                          <Chip color="success" variant="flat" size="sm">
                             Registered
-                          </span>
+                          </Chip>
                         ) : (
                           <Button
                             size="sm"
                             onClick={() => handleAddModel(model)}
-                            disabled={!provider?.configured}
+                            isDisabled={!provider?.configured}
                           >
                             Add
                           </Button>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Registered Models */}
-          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Registered Models</h2>
+          <Card style={{ padding: '24px' }}>
+            <h2 style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              color: 'white',
+              marginBottom: '16px',
+            }}>Registered Models</h2>
             {registeredModels.length === 0 ? (
-              <div className="text-gray-400 text-center py-8">No models registered yet</div>
+              <div style={{
+                color: '#a1a1aa',
+                textAlign: 'center',
+                padding: '32px 0',
+              }}>No models registered yet</div>
             ) : (
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {registeredModels.map((model) => (
-                  <div
+                  <Card
                     key={model.id}
-                    className="bg-gray-700 rounded-lg p-4 border border-gray-600"
+                    style={{
+                      padding: '16px',
+                      backgroundColor: '#27272a',
+                      border: '1px solid #3f3f46',
+                    }}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-white mb-1">
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      marginBottom: '12px',
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{
+                          fontWeight: '500',
+                          color: 'white',
+                          marginBottom: '4px',
+                        }}>
                           {model.display_name || model.name}
                         </h3>
-                        <div className="flex flex-wrap gap-2 mt-2">
+                        <div style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          marginTop: '8px',
+                        }}>
                           {model.modalities.map((mod) => (
-                            <span
-                              key={mod}
-                              className="px-2 py-1 bg-gray-600 text-gray-300 rounded text-xs"
-                            >
+                            <Chip key={mod} size="sm" variant="flat" color="default">
                               {mod}
-                            </span>
+                            </Chip>
                           ))}
                         </div>
                       </div>
-                      <button
+                      <Button
+                        size="sm"
+                        color={model.is_enabled ? 'success' : 'default'}
+                        variant={model.is_enabled ? 'solid' : 'bordered'}
                         onClick={() => toggleModelEnabled(model.id, model.is_enabled)}
-                        className={`px-3 py-1 rounded text-sm transition-colors ${
-                          model.is_enabled
-                            ? 'bg-green-600 text-white hover:bg-green-700'
-                            : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                        }`}
                       >
                         {model.is_enabled ? 'Enabled' : 'Disabled'}
-                      </button>
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-400">
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      fontSize: '14px',
+                      color: '#a1a1aa',
+                    }}>
                       <span>Quality: {((model.quality_score || 0) * 100).toFixed(0)}%</span>
                       <span>Reliability: {((model.reliability_score || 0) * 100).toFixed(0)}%</span>
                     </div>
-                    <div className="mt-3 flex gap-2">
+                    <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                       <Button
                         size="sm"
-                        variant="secondary"
+                        variant="bordered"
                         onClick={() => setEditingModel(model)}
                       >
                         Edit
                       </Button>
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         </div>
 
         {/* Add Manual Model Button */}
-        <div className="mt-6">
+        <div style={{ marginTop: '24px' }}>
           <Button
             variant="secondary"
             onClick={() => {
@@ -347,106 +414,196 @@ export default function ConfigPage() {
         </div>
 
         {/* Edit Model Modal */}
-        {(showAddModel || editingModel) && (
-          <ModelForm
-            model={editingModel}
-            provider={selectedProvider}
-            onSave={handleSaveModel}
-            onCancel={() => {
-              setShowAddModel(false);
-              setEditingModel(null);
-            }}
-          />
-        )}
+        <Modal
+          isOpen={showAddModel || !!editingModel}
+          onClose={() => {
+            setShowAddModel(false);
+            setEditingModel(null);
+          }}
+          size="lg"
+        >
+          <ModalContent>
+            {(onClose) => (
+              <ModelForm
+                model={editingModel}
+                provider={selectedProvider}
+                onSave={(data) => {
+                  handleSaveModel(data);
+                  onClose();
+                }}
+                onCancel={onClose}
+              />
+            )}
+          </ModalContent>
+        </Modal>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Configuration</h1>
-        <p className="text-gray-400">Configure providers and manage models</p>
+    <div style={{ padding: '24px' }}>
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{
+          fontSize: '30px',
+          fontWeight: 'bold',
+          color: 'white',
+          marginBottom: '8px',
+        }}>Configuration</h1>
+        <p style={{ color: '#a1a1aa' }}>Configure providers and manage models</p>
       </div>
 
       {/* Provider Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '24px',
+        marginBottom: '32px',
+      }}>
         {providers.map((provider) => {
           const modelCount = registeredModels.filter(m => m.provider === provider.id).length;
           return (
-            <div
+            <Card
               key={provider.id}
-              onClick={() => setSelectedProvider(provider.id)}
-              className="bg-gray-800 rounded-lg border border-gray-700 p-6 cursor-pointer hover:border-blue-500 hover:shadow-lg transition-all"
+              isPressable
+              onPress={() => setSelectedProvider(provider.id)}
+              style={{
+                padding: '24px',
+                cursor: 'pointer',
+                border: '1px solid #3f3f46',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#3b82f6';
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#3f3f46';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
             >
-              <div className="flex items-start justify-between mb-4">
-                <h2 className="text-xl font-semibold text-white">{provider.name}</h2>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    provider.configured
-                      ? 'bg-green-900 text-green-300'
-                      : 'bg-red-900 text-red-300'
-                  }`}
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+              }}>
+                <h2 style={{
+                  fontSize: '20px',
+                  fontWeight: '600',
+                  color: 'white',
+                }}>{provider.name}</h2>
+                <Chip
+                  color={provider.configured ? 'success' : 'danger'}
+                  variant="flat"
+                  size="sm"
                 >
                   {provider.configured ? 'Configured' : 'Not Configured'}
-                </span>
+                </Chip>
               </div>
               
-              <div className="space-y-2 text-sm text-gray-400 mb-4">
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                fontSize: '14px',
+                color: '#a1a1aa',
+                marginBottom: '16px',
+              }}>
                 {provider.hasApiKey && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400">✓</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: '#4ade80' }}>✓</span>
                     <span>API Key Set</span>
                   </div>
                 )}
                 {provider.hasBaseUrl && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400">✓</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: '#4ade80' }}>✓</span>
                     <span>Base URL: {provider.baseUrl}</span>
                   </div>
                 )}
                 {!provider.hasApiKey && !provider.hasBaseUrl && (
-                  <div className="text-gray-500">Not configured</div>
+                  <div style={{ color: '#71717a' }}>Not configured</div>
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-gray-700">
-                <div className="text-sm text-gray-400">
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingTop: '16px',
+                borderTop: '1px solid #3f3f46',
+              }}>
+                <div style={{ fontSize: '14px', color: '#a1a1aa' }}>
                   {modelCount} model{modelCount !== 1 ? 's' : ''} registered
                 </div>
                 <Button size="sm" variant="primary">
                   View Models →
                 </Button>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {/* Environment Variables Help */}
-      <div className="mt-8 bg-gray-800 rounded-lg border border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Environment Variables</h3>
-        <p className="text-gray-400 text-sm mb-4">
-          Configure providers by adding these variables to your <code className="bg-gray-900 px-2 py-1 rounded text-xs">.env</code> file:
+      <Card style={{ padding: '24px' }}>
+        <h3 style={{
+          fontSize: '18px',
+          fontWeight: '600',
+          color: 'white',
+          marginBottom: '16px',
+        }}>Environment Variables</h3>
+        <p style={{
+          color: '#a1a1aa',
+          fontSize: '14px',
+          marginBottom: '16px',
+        }}>
+          Configure providers by adding these variables to your <code style={{
+            backgroundColor: '#18181b',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            fontSize: '12px',
+          }}>.env</code> file:
         </p>
-        <div className="bg-gray-900 rounded p-4 font-mono text-sm text-gray-300 space-y-1">
+        <div style={{
+          backgroundColor: '#18181b',
+          borderRadius: '8px',
+          padding: '16px',
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          color: '#d4d4d8',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+        }}>
           <div>OPENAI_API_KEY=your_key_here</div>
           <div>ANTHROPIC_API_KEY=your_key_here</div>
           <div>GROQ_API_KEY=your_key_here</div>
           <div>OLLAMA_BASE_URL=http://localhost:11434</div>
           <div>LM_STUDIO_BASE_URL=http://localhost:1234</div>
         </div>
-      </div>
+      </Card>
 
       {/* Add Manual Model Modal */}
-      {showAddModel && (
-        <ModelForm
-          model={null}
-          provider={null}
-          onSave={handleSaveModel}
-          onCancel={() => setShowAddModel(false)}
-        />
-      )}
+      <Modal
+        isOpen={showAddModel}
+        onClose={() => setShowAddModel(false)}
+        size="lg"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <ModelForm
+              model={null}
+              provider={null}
+              onSave={(data) => {
+                handleSaveModel(data);
+                onClose();
+              }}
+              onCancel={onClose}
+            />
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }
@@ -478,130 +635,128 @@ function ModelForm({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-white">
+    <>
+      <ModalHeader>
+        <h2 style={{
+          fontSize: '20px',
+          fontWeight: 'bold',
+          color: 'white',
+        }}>
           {model ? 'Edit Model' : 'Add New Model'}
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      </ModalHeader>
+      <ModalBody>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Input
+            label="Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            isRequired
+            variant="bordered"
+          />
+          <Input
+            label="Display Name"
+            value={formData.display_name}
+            onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+            variant="bordered"
+          />
+          <Select
+            label="Provider"
+            selectedKeys={[formData.provider]}
+            onSelectionChange={(keys) => {
+              const value = Array.from(keys)[0] as string;
+              setFormData({ ...formData, provider: value });
+            }}
+            isDisabled={!!provider}
+            variant="bordered"
+          >
+            <SelectItem key="openai">OpenAI</SelectItem>
+            <SelectItem key="anthropic">Anthropic</SelectItem>
+            <SelectItem key="groq">Groq</SelectItem>
+            <SelectItem key="ollama">Ollama</SelectItem>
+            <SelectItem key="lmstudio">LM Studio</SelectItem>
+          </Select>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Display Name</label>
-            <input
-              type="text"
-              value={formData.display_name}
-              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Provider</label>
-            <select
-              value={formData.provider}
-              onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
-              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-              disabled={!!provider}
-            >
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="groq">Groq</option>
-              <option value="ollama">Ollama</option>
-              <option value="lmstudio">LM Studio</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Modalities</label>
-            <div className="flex gap-4">
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#d4d4d8',
+              marginBottom: '8px',
+            }}>Modalities</label>
+            <div style={{ display: 'flex', gap: '16px' }}>
               {['text', 'vision', 'image_gen'].map((mod) => (
-                <label key={mod} className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.modalities.includes(mod)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFormData({
-                          ...formData,
-                          modalities: [...formData.modalities, mod],
-                        });
-                      } else {
-                        setFormData({
-                          ...formData,
-                          modalities: formData.modalities.filter((m) => m !== mod),
-                        });
-                      }
-                    }}
-                    className="mr-2 w-4 h-4"
-                  />
-                  <span className="text-gray-300">{mod}</span>
-                </label>
+                <Checkbox
+                  key={mod}
+                  isSelected={formData.modalities.includes(mod)}
+                  onValueChange={(checked) => {
+                    if (checked) {
+                      setFormData({
+                        ...formData,
+                        modalities: [...formData.modalities, mod],
+                      });
+                    } else {
+                      setFormData({
+                        ...formData,
+                        modalities: formData.modalities.filter((m) => m !== mod),
+                      });
+                    }
+                  }}
+                >
+                  {mod}
+                </Checkbox>
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Quality Score</label>
-              <input
-                type="number"
-                min="0"
-                max="1"
-                step="0.01"
-                value={formData.quality_score}
-                onChange={(e) =>
-                  setFormData({ ...formData, quality_score: parseFloat(e.target.value) })
-                }
-                className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Reliability Score</label>
-              <input
-                type="number"
-                min="0"
-                max="1"
-                step="0.01"
-                value={formData.reliability_score}
-                onChange={(e) =>
-                  setFormData({ ...formData, reliability_score: parseFloat(e.target.value) })
-                }
-                className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Cost per 1k Tokens (optional)</label>
-            <input
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <Input
+              label="Quality Score"
               type="number"
-              step="0.0001"
-              value={formData.cost_per_1k_tokens || ''}
+              min="0"
+              max="1"
+              step="0.01"
+              value={formData.quality_score.toString()}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  cost_per_1k_tokens: e.target.value ? parseFloat(e.target.value) : undefined,
-                })
+                setFormData({ ...formData, quality_score: parseFloat(e.target.value) })
               }
-              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              variant="bordered"
+            />
+            <Input
+              label="Reliability Score"
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              value={formData.reliability_score.toString()}
+              onChange={(e) =>
+                setFormData({ ...formData, reliability_score: parseFloat(e.target.value) })
+              }
+              variant="bordered"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={onCancel}>
+          <Input
+            label="Cost per 1k Tokens (optional)"
+            type="number"
+            step="0.0001"
+            value={formData.cost_per_1k_tokens?.toString() || ''}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                cost_per_1k_tokens: e.target.value ? parseFloat(e.target.value) : undefined,
+              })
+            }
+            variant="bordered"
+          />
+          <ModalFooter>
+            <Button variant="secondary" onClick={onCancel}>
               Cancel
             </Button>
             <Button type="submit" variant="primary">
               {model ? 'Update' : 'Create'}
             </Button>
-          </div>
+          </ModalFooter>
         </form>
-      </div>
-    </div>
+      </ModalBody>
+    </>
   );
 }

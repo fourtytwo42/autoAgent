@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBlackboardUpdates } from '../../hooks/useBlackboardUpdates';
+import { Card, Input, Select, SelectItem, Chip } from '@heroui/react';
 
 interface BlackboardItem {
   id: string;
@@ -46,7 +47,6 @@ export default function BlackboardPage() {
 
       const response = await fetch(`/api/blackboard?${params.toString()}`);
       const data = await response.json();
-      // Items will be updated by the hook
       refresh();
     } catch (error) {
       console.error('Error fetching items:', error);
@@ -65,75 +65,166 @@ export default function BlackboardPage() {
   });
 
   return (
-    <div className="flex h-screen max-h-[calc(100vh-4rem)]">
+    <div style={{
+      display: 'flex',
+      height: 'calc(100vh - 4rem)',
+      maxHeight: 'calc(100vh - 4rem)',
+    }}>
       {/* Filters */}
-      <div className="w-64 bg-gray-800 p-6 border-r border-gray-700">
-        <h2 className="font-bold mb-6 text-white text-lg">Filters</h2>
-        <div className="space-y-4">
+      <Card style={{
+        width: '256px',
+        padding: '24px',
+        borderRight: '1px solid #3f3f46',
+        borderRadius: 0,
+        backgroundColor: '#18181b',
+      }}>
+        <h2 style={{
+          fontWeight: 'bold',
+          marginBottom: '24px',
+          color: 'white',
+          fontSize: '18px',
+        }}>Filters</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-300">Type</label>
-            <select
-              value={filters.type}
-              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#d4d4d8',
+              marginBottom: '4px',
+            }}>Type</label>
+            <Select
+              selectedKeys={filters.type ? [filters.type] : []}
+              onSelectionChange={(keys) => {
+                const value = Array.from(keys)[0] as string || '';
+                setFilters({ ...filters, type: value });
+              }}
+              placeholder="All Types"
+              variant="bordered"
+              size="sm"
             >
-              <option value="">All Types</option>
-              <option value="user_request">User Request</option>
-              <option value="goal">Goal</option>
-              <option value="task">Task</option>
-              <option value="agent_output">Agent Output</option>
-              <option value="judgement">Judgement</option>
-            </select>
+              <SelectItem key="user_request">User Request</SelectItem>
+              <SelectItem key="goal">Goal</SelectItem>
+              <SelectItem key="task">Task</SelectItem>
+              <SelectItem key="agent_output">Agent Output</SelectItem>
+              <SelectItem key="judgement">Judgement</SelectItem>
+            </Select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-300">Search</label>
-            <input
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#d4d4d8',
+              marginBottom: '4px',
+            }}>Search</label>
+            <Input
               type="text"
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               placeholder="Search..."
-              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              variant="bordered"
+              size="sm"
             />
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Item List */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Blackboard Explorer</h1>
-          <div className="mb-4 text-sm text-gray-400 flex items-center gap-2">
-          <span className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} ${isConnected ? 'animate-pulse' : ''}`}></span>
-          <span>{isConnected ? 'Live updates' : 'Disconnected'}</span>
-          <span>|</span>
-          <span>{filteredItems.length} items</span>
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '24px',
+      }}>
+        <div style={{ marginBottom: '24px' }}>
+          <h1 style={{
+            fontSize: '30px',
+            fontWeight: 'bold',
+            color: 'white',
+            marginBottom: '8px',
+          }}>Blackboard Explorer</h1>
+          <div style={{
+            marginBottom: '16px',
+            fontSize: '14px',
+            color: '#a1a1aa',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <span style={{
+              display: 'inline-block',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: isConnected ? '#22c55e' : '#ef4444',
+              animation: isConnected ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+            }}></span>
+            <span>{isConnected ? 'Live updates' : 'Disconnected'}</span>
+            <span>|</span>
+            <span>{filteredItems.length} items</span>
           </div>
         </div>
         {loading ? (
-          <div className="text-gray-400">Loading...</div>
+          <div style={{ color: '#a1a1aa' }}>Loading...</div>
         ) : filteredItems.length === 0 ? (
-          <div className="text-gray-400">No items found</div>
+          <div style={{ color: '#a1a1aa' }}>No items found</div>
         ) : (
-          <div className="space-y-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredItems.map((item) => (
-              <div
+              <Card
                 key={item.id}
-                onClick={() => setSelectedItem(item)}
-                className={`p-5 border rounded-lg cursor-pointer hover:bg-gray-700 hover:border-gray-500 transition-all ${
-                  selectedItem?.id === item.id ? 'bg-gray-700 border-blue-500 shadow-lg' : 'border-gray-600'
-                }`}
+                isPressable
+                onPress={() => setSelectedItem(item)}
+                style={{
+                  padding: '20px',
+                  border: selectedItem?.id === item.id ? '2px solid #3b82f6' : '1px solid #3f3f46',
+                  backgroundColor: selectedItem?.id === item.id ? '#27272a' : '#18181b',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedItem?.id !== item.id) {
+                    e.currentTarget.style.borderColor = '#52525b';
+                    e.currentTarget.style.backgroundColor = '#27272a';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedItem?.id !== item.id) {
+                    e.currentTarget.style.borderColor = '#3f3f46';
+                    e.currentTarget.style.backgroundColor = '#18181b';
+                  }
+                }}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="font-semibold text-gray-200 text-lg">{item.type}</div>
-                  <span className="text-xs text-gray-500">
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  marginBottom: '8px',
+                }}>
+                  <div style={{
+                    fontWeight: '600',
+                    color: 'white',
+                    fontSize: '18px',
+                  }}>{item.type}</div>
+                  <span style={{
+                    fontSize: '12px',
+                    color: '#71717a',
+                  }}>
                     {new Date(item.created_at).toLocaleDateString()}
                   </span>
                 </div>
-                <div className="text-sm text-gray-300 mb-2">{item.summary}</div>
-                <div className="text-xs text-gray-500">
+                <div style={{
+                  fontSize: '14px',
+                  color: '#d4d4d8',
+                  marginBottom: '8px',
+                }}>{item.summary}</div>
+                <div style={{
+                  fontSize: '12px',
+                  color: '#71717a',
+                }}>
                   {new Date(item.created_at).toLocaleTimeString()}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -141,39 +232,98 @@ export default function BlackboardPage() {
 
       {/* Detail Panel */}
       {selectedItem && (
-        <div className="w-96 bg-gray-800 p-6 border-l border-gray-700 overflow-y-auto">
-          <h2 className="text-xl font-bold mb-6 text-white">Details</h2>
-          <div className="space-y-6">
+        <Card style={{
+          width: '384px',
+          padding: '24px',
+          borderLeft: '1px solid #3f3f46',
+          borderRadius: 0,
+          backgroundColor: '#18181b',
+          overflowY: 'auto',
+        }}>
+          <h2 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            marginBottom: '24px',
+            color: 'white',
+          }}>Details</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-2">Type</div>
-              <div className="text-gray-200 font-medium">{selectedItem.type}</div>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '8px',
+              }}>Type</div>
+              <div style={{
+                color: '#e4e4e7',
+                fontWeight: '500',
+              }}>{selectedItem.type}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-2">Summary</div>
-              <div className="text-gray-200">{selectedItem.summary}</div>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '8px',
+              }}>Summary</div>
+              <div style={{ color: '#e4e4e7' }}>{selectedItem.summary}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-2">Dimensions</div>
-              <pre className="text-xs bg-gray-900 p-4 rounded-lg overflow-auto text-gray-300 border border-gray-700">
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '8px',
+              }}>Dimensions</div>
+              <pre style={{
+                fontSize: '12px',
+                backgroundColor: '#0a0a0a',
+                padding: '16px',
+                borderRadius: '8px',
+                overflow: 'auto',
+                color: '#d4d4d8',
+                border: '1px solid #3f3f46',
+                margin: 0,
+              }}>
                 {JSON.stringify(selectedItem.dimensions, null, 2)}
               </pre>
             </div>
             {selectedItem.detail && (
               <div>
-                <div className="text-sm font-medium text-gray-400 mb-2">Detail</div>
-                <pre className="text-xs bg-gray-900 p-4 rounded-lg overflow-auto text-gray-300 border border-gray-700">
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#a1a1aa',
+                  marginBottom: '8px',
+                }}>Detail</div>
+                <pre style={{
+                  fontSize: '12px',
+                  backgroundColor: '#0a0a0a',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  overflow: 'auto',
+                  color: '#d4d4d8',
+                  border: '1px solid #3f3f46',
+                  margin: 0,
+                }}>
                   {JSON.stringify(selectedItem.detail, null, 2)}
                 </pre>
               </div>
             )}
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-2">Created</div>
-              <div className="text-gray-200">{new Date(selectedItem.created_at).toLocaleString()}</div>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '8px',
+              }}>Created</div>
+              <div style={{ color: '#e4e4e7' }}>
+                {new Date(selectedItem.created_at).toLocaleString()}
+              </div>
             </div>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
 }
-

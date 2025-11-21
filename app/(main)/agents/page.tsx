@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ProposalView from '../../components/agents/ProposalView';
 import Button from '../../components/ui/Button';
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Card, Chip } from '@heroui/react';
 
 interface Agent {
   id: string;
@@ -52,10 +53,30 @@ export default function AgentsPage() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen max-h-[calc(100vh-4rem)]">
-      <div className="flex-1 p-6 overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-white">Agents</h1>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: 'calc(100vh - 4rem)',
+      maxHeight: 'calc(100vh - 4rem)',
+    }}>
+      <div style={{
+        flex: 1,
+        padding: '24px',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px',
+        }}>
+          <h1 style={{
+            fontSize: '30px',
+            fontWeight: 'bold',
+            color: 'white',
+          }}>Agents</h1>
           <Button
             onClick={() => {
               setShowProposals(!showProposals);
@@ -69,103 +90,159 @@ export default function AgentsPage() {
         </div>
 
         {showProposals && (
-          <div className="mb-6">
+          <div style={{ marginBottom: '24px' }}>
             <ProposalView proposals={proposals} />
           </div>
         )}
         {loading ? (
-          <div className="text-gray-400 text-center py-12">Loading agents...</div>
+          <div style={{
+            color: '#a1a1aa',
+            textAlign: 'center',
+            padding: '48px 0',
+          }}>Loading agents...</div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-700">
-            <table className="min-w-full border-collapse bg-gray-800">
-              <thead>
-                <tr className="bg-gray-700">
-                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">ID</th>
-                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Description</th>
-                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Core</th>
-                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Enabled</th>
-                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Modalities</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <Table
+              aria-label="Agents table"
+              selectionMode="single"
+              selectedKeys={selectedAgent ? [selectedAgent.id] : []}
+              onSelectionChange={(keys) => {
+                const selectedId = Array.from(keys)[0] as string;
+                const agent = agents.find(a => a.id === selectedId);
+                setSelectedAgent(agent || null);
+              }}
+            >
+              <TableHeader>
+                <TableColumn>ID</TableColumn>
+                <TableColumn>Description</TableColumn>
+                <TableColumn>Core</TableColumn>
+                <TableColumn>Enabled</TableColumn>
+                <TableColumn>Modalities</TableColumn>
+              </TableHeader>
+              <TableBody>
                 {agents.map((agent) => (
-                  <tr
-                    key={agent.id}
-                    onClick={() => setSelectedAgent(agent)}
-                    className={`cursor-pointer hover:bg-gray-700 transition-colors ${
-                      selectedAgent?.id === agent.id ? 'bg-gray-700' : ''
-                    }`}
-                  >
-                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">{agent.id}</td>
-                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">{agent.description}</td>
-                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                      {agent.is_core ? <span className="text-green-400">✓</span> : ''}
-                    </td>
-                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                      {agent.is_enabled ? <span className="text-green-400">✓</span> : ''}
-                    </td>
-                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
-                      <div className="flex gap-2">
+                  <TableRow key={agent.id}>
+                    <TableCell>
+                      <code style={{
+                        fontSize: '14px',
+                        color: '#e4e4e7',
+                      }}>{agent.id}</code>
+                    </TableCell>
+                    <TableCell style={{ color: '#e4e4e7' }}>{agent.description}</TableCell>
+                    <TableCell>
+                      {agent.is_core ? (
+                        <Chip color="success" size="sm" variant="flat">✓</Chip>
+                      ) : (
+                        <span style={{ color: '#71717a' }}>—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {agent.is_enabled ? (
+                        <Chip color="success" size="sm" variant="flat">✓</Chip>
+                      ) : (
+                        <span style={{ color: '#71717a' }}>—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         {agent.modalities.map((mod) => (
-                          <span key={mod} className="px-2 py-1 bg-gray-600 rounded text-xs">
+                          <Chip key={mod} size="sm" variant="flat" color="default">
                             {mod}
-                          </span>
+                          </Chip>
                         ))}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </Card>
         )}
       </div>
       {selectedAgent && (
-        <div className="w-96 bg-gray-800 p-6 border-l border-gray-700">
-          <h2 className="text-xl font-bold mb-6 text-white">Agent Details</h2>
-          <div className="space-y-4">
+        <Card style={{
+          width: '384px',
+          padding: '24px',
+          borderLeft: '1px solid #3f3f46',
+          backgroundColor: '#18181b',
+        }}>
+          <h2 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            marginBottom: '24px',
+            color: 'white',
+          }}>Agent Details</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-1">ID</div>
-              <div className="text-gray-200 font-mono text-sm">{selectedAgent.id}</div>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '4px',
+              }}>ID</div>
+              <div style={{
+                color: '#e4e4e7',
+                fontFamily: 'monospace',
+                fontSize: '14px',
+              }}>{selectedAgent.id}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-1">Description</div>
-              <div className="text-gray-200">{selectedAgent.description}</div>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '4px',
+              }}>Description</div>
+              <div style={{ color: '#e4e4e7' }}>{selectedAgent.description}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-1">Core</div>
-              <div className="text-gray-200">
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '4px',
+              }}>Core</div>
+              <div style={{ color: '#e4e4e7' }}>
                 {selectedAgent.is_core ? (
-                  <span className="text-green-400">Yes</span>
+                  <Chip color="success" size="sm" variant="flat">Yes</Chip>
                 ) : (
-                  <span className="text-gray-500">No</span>
+                  <Chip size="sm" variant="flat">No</Chip>
                 )}
               </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-1">Enabled</div>
-              <div className="text-gray-200">
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '4px',
+              }}>Enabled</div>
+              <div style={{ color: '#e4e4e7' }}>
                 {selectedAgent.is_enabled ? (
-                  <span className="text-green-400">Yes</span>
+                  <Chip color="success" size="sm" variant="flat">Yes</Chip>
                 ) : (
-                  <span className="text-gray-500">No</span>
+                  <Chip size="sm" variant="flat">No</Chip>
                 )}
               </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-400 mb-2">Modalities</div>
-              <div className="flex flex-wrap gap-2">
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#a1a1aa',
+                marginBottom: '8px',
+              }}>Modalities</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {selectedAgent.modalities.map((mod) => (
-                  <span key={mod} className="px-3 py-1 bg-gray-700 rounded text-sm">
+                  <Chip key={mod} size="sm" variant="flat" color="default">
                     {mod}
-                  </span>
+                  </Chip>
                 ))}
               </div>
             </div>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
 }
-

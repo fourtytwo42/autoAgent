@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useEvents } from '../../hooks/useEvents';
+import { Card, Select, SelectItem, Chip } from '@heroui/react';
 
 interface Event {
   id: string;
@@ -35,68 +36,144 @@ export default function TimelinePage() {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-white mb-2">Event Timeline</h1>
-        <p className="text-gray-400">Real-time system events and activity</p>
+    <div style={{ padding: '24px' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{
+          fontSize: '30px',
+          fontWeight: 'bold',
+          color: 'white',
+          marginBottom: '8px',
+        }}>Event Timeline</h1>
+        <p style={{ color: '#a1a1aa' }}>Real-time system events and activity</p>
       </div>
-      <div className="mb-6 flex gap-4">
-        <select
-          value={filter.type}
-          onChange={(e) => setFilter({ ...filter, type: e.target.value })}
-          className="border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <div style={{
+        marginBottom: '24px',
+        display: 'flex',
+        gap: '16px',
+      }}>
+        <Select
+          selectedKeys={filter.type ? [filter.type] : []}
+          onSelectionChange={(keys) => {
+            const value = Array.from(keys)[0] as string || '';
+            setFilter({ ...filter, type: value });
+          }}
+          placeholder="All Types"
+          variant="bordered"
+          style={{ minWidth: '200px' }}
         >
-          <option value="">All Types</option>
-          <option value="goal_created">Goal Created</option>
-          <option value="task_created">Task Created</option>
-          <option value="agent_run">Agent Run</option>
-          <option value="judgement">Judgement</option>
-        </select>
+          <SelectItem key="goal_created">Goal Created</SelectItem>
+          <SelectItem key="task_created">Task Created</SelectItem>
+          <SelectItem key="agent_run">Agent Run</SelectItem>
+          <SelectItem key="judgement">Judgement</SelectItem>
+        </Select>
       </div>
-      <div className="mb-4 text-sm text-gray-400 flex items-center gap-2">
-        <span className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'} ${isConnected ? 'animate-pulse' : ''}`}></span>
+      <div style={{
+        marginBottom: '16px',
+        fontSize: '14px',
+        color: '#a1a1aa',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      }}>
+        <span style={{
+          display: 'inline-block',
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          backgroundColor: isConnected ? '#22c55e' : '#ef4444',
+          animation: isConnected ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+        }}></span>
         <span>{isConnected ? 'Live updates' : 'Disconnected'}</span>
         <span>|</span>
         <span>{filteredEvents.length} events</span>
       </div>
       {loading ? (
-        <div className="text-gray-400">Loading...</div>
+        <div style={{ color: '#a1a1aa' }}>Loading...</div>
       ) : filteredEvents.length === 0 ? (
-        <div className="text-gray-400">No events found</div>
+        <div style={{ color: '#a1a1aa' }}>No events found</div>
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {filteredEvents.map((event) => (
-            <div key={event.id} className="border border-gray-600 rounded-lg p-5 hover:bg-gray-700 hover:border-gray-500 bg-gray-800 transition-all">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="font-semibold text-gray-200 text-lg mb-2">{event.type}</div>
-                  <div className="space-y-1">
+            <Card
+              key={event.id}
+              style={{
+                padding: '20px',
+                border: '1px solid #3f3f46',
+                backgroundColor: '#18181b',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#52525b';
+                e.currentTarget.style.backgroundColor = '#27272a';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#3f3f46';
+                e.currentTarget.style.backgroundColor = '#18181b';
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontWeight: '600',
+                    color: 'white',
+                    fontSize: '18px',
+                    marginBottom: '8px',
+                  }}>{event.type}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {event.agent_id && (
-                      <div className="text-sm text-gray-400">
-                        <span className="text-gray-500">Agent:</span> {event.agent_id}
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#a1a1aa',
+                      }}>
+                        <span style={{ color: '#71717a' }}>Agent:</span> {event.agent_id}
                       </div>
                     )}
                     {event.model_id && (
-                      <div className="text-sm text-gray-400">
-                        <span className="text-gray-500">Model:</span> {event.model_id}
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#a1a1aa',
+                      }}>
+                        <span style={{ color: '#71717a' }}>Model:</span> {event.model_id}
                       </div>
                     )}
                     {event.data && (
-                      <div className="text-xs text-gray-500 mt-2 bg-gray-900 p-2 rounded border border-gray-700">
-                        {JSON.stringify(event.data, null, 2)}
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#71717a',
+                        marginTop: '8px',
+                        backgroundColor: '#0a0a0a',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid #3f3f46',
+                      }}>
+                        <pre style={{
+                          margin: 0,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                        }}>
+                          {JSON.stringify(event.data, null, 2)}
+                        </pre>
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="text-xs text-gray-500 ml-4 whitespace-nowrap">
+                <div style={{
+                  fontSize: '12px',
+                  color: '#71717a',
+                  marginLeft: '16px',
+                  whiteSpace: 'nowrap',
+                }}>
                   {new Date(event.created_at).toLocaleString()}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
     </div>
   );
 }
-
