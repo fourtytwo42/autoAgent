@@ -183,6 +183,15 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
         // Store additional metadata from JSON if present
         if (jsonData.summary) {
           metadata.summary = jsonData.summary;
+          console.log(`[Worker] Extracted summary from JSON: ${jsonData.summary.substring(0, 100)}...`);
+        } else {
+          // If no summary field, try to create one from content
+          const contentText = extractTextFromJson(jsonData);
+          if (contentText && contentText.length > 20) {
+            // Use first 150 chars of content as summary
+            metadata.summary = contentText.substring(0, 150) + (contentText.length > 150 ? '...' : '');
+            console.log(`[Worker] Created summary from content: ${metadata.summary.substring(0, 100)}...`);
+          }
         }
         if (jsonData.status) {
           metadata.status = jsonData.status;
@@ -201,7 +210,22 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
       output = rawOutput || `Task completed by ${this.agentType.id}`;
     }
     
+    // Ensure we have a summary - create one from output if missing
+    if (!metadata.summary || metadata.summary.trim().length === 0) {
+      // Create a summary from the output content (first 150 chars)
+      const summaryText = output.substring(0, 150).trim();
+      if (summaryText.length > 20) {
+        metadata.summary = summaryText + (output.length > 150 ? '...' : '');
+        console.log(`[Worker] Created summary from output content: ${metadata.summary}`);
+      } else {
+        // Fallback to a generic summary
+        metadata.summary = `Completed task: ${taskSummary.substring(0, 100)}`;
+        console.log(`[Worker] Using fallback summary: ${metadata.summary}`);
+      }
+    }
+    
     console.log(`[Worker] Final output length: ${output.length} chars, preview: ${output.substring(0, 200)}...`);
+    console.log(`[Worker] Final metadata summary: ${metadata.summary}`);
 
     const latency = Date.now() - startTime;
 
