@@ -1228,18 +1228,17 @@ export default function BlackboardViewPage() {
             ))}
           </div>
         ))}
-      </div>
 
-      {items.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">No items in the blackboard yet.</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Items will appear here as agents create goals, tasks, and outputs.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        {items.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">No items in the blackboard yet.</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Items will appear here as agents create goals, tasks, and outputs.
+              </p>
+            </CardContent>
+          </Card>
+        )}
         </div>
       </div>
     </div>
