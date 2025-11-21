@@ -30,10 +30,41 @@ export class TaskPlannerAgent extends BaseAgent {
     const goalId = context.input.goal_id as string;
     const goalSummary = context.input.goal_summary as string || 'Unknown goal';
 
-    // Build prompt for task planning
+    // Build prompt for task planning - emphasize JSON output
     const userMessage: ChatMessage = {
       role: 'user',
-      content: `Analyze the following goal and break it down into specific, actionable tasks:\n\nGoal: ${goalSummary}\n\nProvide a list of tasks, each with:\n- A clear description\n- Priority (high/medium/low)\n- Any dependencies on other tasks\n- Suggested approach or considerations`,
+      content: `Analyze the following goal and break it down into specific, actionable tasks.
+
+Goal: ${goalSummary}
+
+**CRITICAL: You MUST respond with ONLY valid JSON. No markdown, no prose, no explanations, no tables.**
+
+Return a JSON object with this exact structure:
+{
+  "tasks": [
+    {
+      "number": 1,
+      "summary": "Clear, actionable instruction starting with a verb",
+      "priority": "high|medium|low",
+      "agent_count": 1,
+      "task_type": "research|writing|analysis|coding|planning|general",
+      "dependencies": []
+    }
+  ]
+}
+
+Each task summary must:
+- Start with an action verb (Identify, Create, Research, Compile, etc.)
+- Be a single, specific task (not a group description or explanation)
+- Be clear and actionable
+
+Do NOT include:
+- Explanatory text about task groups
+- Notes about priorities or dependencies
+- Markdown formatting
+- Any text outside the JSON object
+
+Respond with ONLY the JSON object, nothing else.`,
     };
 
     const messages = this.buildMessages([userMessage]);
