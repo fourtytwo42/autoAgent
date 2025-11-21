@@ -242,41 +242,76 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
     
     // Ensure we have a summary - create one from output if missing
     if (!metadata.summary || metadata.summary.trim().length === 0) {
-      // Create a summary from the output content, but skip if it looks like raw JSON
-      let summaryText = output.substring(0, 300).trim();
+      // Create a concise summary, not just the first N chars of output
+      // Try to extract a meaningful one-line summary from the task
+      let summaryText = '';
       
       // If output starts with JSON, try to extract meaningful content
-      if (summaryText.startsWith('{') || summaryText.startsWith('[')) {
+      if (output.trim().startsWith('{') || output.trim().startsWith('[')) {
         try {
           // Try to parse and extract a meaningful field
           const parsed = typeof parseResult.data === 'object' && parseResult.success 
             ? parseResult.data 
-            : JSON.parse(summaryText);
+            : JSON.parse(output.substring(0, 500));
           
           if (parsed.content) summaryText = parsed.content;
           else if (parsed.response) summaryText = parsed.response;
           else if (parsed.text) summaryText = parsed.text;
           else if (parsed.message) summaryText = parsed.message;
           else if (parsed.query && typeof parsed.query === 'string') {
-            summaryText = `Completed query: ${parsed.query}`;
-          } else {
-            // Use task summary as fallback
-            summaryText = taskSummary.substring(0, 150);
+            summaryText = `Completed: ${parsed.query}`;
           }
         } catch (e) {
-          // If parsing fails, use task summary
-          summaryText = taskSummary.substring(0, 150);
+          // If parsing fails, continue to other methods
         }
       }
       
-      // Clean and truncate summary
-      summaryText = summaryText.trim();
-      if (summaryText.length > 20 && !summaryText.startsWith('{') && !summaryText.startsWith('[')) {
-        metadata.summary = summaryText.substring(0, 150) + (summaryText.length > 150 ? '...' : '');
-        console.log(`[Worker] Created summary from output: ${metadata.summary}`);
+      // If no summary from JSON, create a concise one from task description
+      if (!summaryText || summaryText.trim().length < 10) {
+        // Extract key action from task summary
+        // Remove common prefixes and create a concise summary
+        const taskWords = taskSummary.split(' ');
+        // Find action verbs (usually early in the sentence)
+        const actionIndex = taskWords.findIndex(w => 
+          ['research', 'identify', 'compile', 'create', 'draft', 'write', 'find', 'list', 'gather'].includes(w.toLowerCase())
+        );
+        
+        if (actionIndex >= 0 && actionIndex < taskWords.length - 1) {
+          // Use task action + first few words as summary
+          const action = taskWords[actionIndex];
+          const rest = taskWords.slice(actionIndex + 1, actionIndex + 6).join(' ');
+          summaryText = `${action.charAt(0).toUpperCase() + action.slice(1)}${rest ? ' ' + rest : ''}`;
+          // Limit to 100 chars for conciseness
+          summaryText = summaryText.substring(0, 100);
+          if (taskSummary.length > 100) summaryText += '...';
+        } else {
+          // Fallback: use first sentence of task or first 80 chars
+          const firstSentence = taskSummary.split(/[.!?]/)[0] || taskSummary;
+          summaryText = firstSentence.substring(0, 80).trim();
+          if (firstSentence.length > 80) summaryText += '...';
+        }
       } else {
-        // Fallback to a generic summary based on task
-        metadata.summary = `Completed: ${taskSummary.substring(0, 120)}...`;
+        // Clean up summary text - take first sentence or 80 chars
+        summaryText = summaryText.trim();
+        if (summaryText.length > 80) {
+          // Try to find a sentence boundary
+          const firstSentence = summaryText.split(/[.!?]/)[0];
+          if (firstSentence && firstSentence.length > 10 && firstSentence.length < 100) {
+            summaryText = firstSentence;
+          } else {
+            summaryText = summaryText.substring(0, 80) + '...';
+          }
+        }
+      }
+      
+      // Final validation and assignment
+      summaryText = summaryText.trim();
+      if (summaryText.length > 10 && !summaryText.startsWith('{') && !summaryText.startsWith('[')) {
+        metadata.summary = summaryText;
+        console.log(`[Worker] Created concise summary: ${metadata.summary}`);
+      } else {
+        // Last resort: use a generic summary based on task
+        metadata.summary = `Completed task: ${taskSummary.substring(0, 70)}...`;
         console.log(`[Worker] Using task-based summary: ${metadata.summary}`);
       }
     }

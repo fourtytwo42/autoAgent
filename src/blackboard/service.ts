@@ -112,41 +112,65 @@ export class BlackboardService {
     metadata?: Record<string, any>
   ): Promise<BlackboardItem> {
     // Use summary from metadata if available (from worker's JSON output), otherwise use default
-    // Validate that summary is readable text, not raw JSON
+    // Validate that summary is readable text, not raw JSON, and is concise (not full output)
     let summary = `Output from ${agentId}`;
     if (metadata?.summary && typeof metadata.summary === 'string' && metadata.summary.trim().length > 0) {
       const summaryText = metadata.summary.trim();
       // Reject if it looks like raw JSON (starts with { or [)
-      if (!summaryText.startsWith('{') && !summaryText.startsWith('[') && summaryText.length > 10) {
+      // Also reject if it's too long (likely full output, not a summary)
+      if (!summaryText.startsWith('{') && 
+          !summaryText.startsWith('[') && 
+          summaryText.length > 10 && 
+          summaryText.length < 200) { // Max 200 chars for a summary
         summary = summaryText;
       } else {
-        // Try to extract meaningful text from the content if summary is JSON
-        console.warn(`[BlackboardService] Summary appears to be JSON, attempting to extract from content`);
-        // Will use default "Output from {agentId}" below
+        // Summary is invalid (JSON or too long) - will create concise one below
+        console.warn(`[BlackboardService] Summary invalid (JSON or too long), creating concise one`);
       }
     }
     
-    // If still using default and we have output content, try to create a readable summary
+    // If still using default and we have output content, create a concise summary
     if (summary === `Output from ${agentId}` && output && output.length > 20) {
+      // Create a concise summary, not just truncate the output
+      let contentSummary = '';
+      
       // Try to extract readable text from output (skip if it's raw JSON)
-      let contentSummary = output.trim();
-      if (contentSummary.startsWith('{') || contentSummary.startsWith('[')) {
+      let outputText = output.trim();
+      if (outputText.startsWith('{') || outputText.startsWith('[')) {
         try {
-          const parsed = JSON.parse(contentSummary.substring(0, 500));
+          const parsed = JSON.parse(outputText.substring(0, 500));
           // Try common fields
-          if (parsed.content) contentSummary = parsed.content;
-          else if (parsed.response) contentSummary = parsed.response;
-          else if (parsed.text) contentSummary = parsed.text;
-          else if (parsed.message) contentSummary = parsed.message;
-          else if (parsed.query) contentSummary = `Completed query: ${parsed.query}`;
-          else contentSummary = `Completed task by ${agentId}`;
+          if (parsed.content) outputText = parsed.content;
+          else if (parsed.response) outputText = parsed.response;
+          else if (parsed.text) outputText = parsed.text;
+          else if (parsed.message) outputText = parsed.message;
+          else if (parsed.query) {
+            contentSummary = `Completed: ${parsed.query}`;
+          } else {
+            contentSummary = `Completed task by ${agentId}`;
+          }
         } catch (e) {
           contentSummary = `Completed task by ${agentId}`;
         }
       }
-      // Use first 150 chars as summary if it's readable text
-      if (contentSummary && contentSummary.length > 20 && !contentSummary.startsWith('{') && !contentSummary.startsWith('[')) {
-        summary = contentSummary.substring(0, 150) + (contentSummary.length > 150 ? '...' : '');
+      
+      // If we have outputText, create a concise summary (first sentence or 80 chars)
+      if (!contentSummary && outputText && outputText.length > 10 && !outputText.startsWith('{') && !outputText.startsWith('[')) {
+        // Try to find first sentence
+        const firstSentence = outputText.split(/[.!?\n]/)[0];
+        if (firstSentence && firstSentence.length > 15 && firstSentence.length < 150) {
+          contentSummary = firstSentence.trim();
+        } else {
+          // Use first 80 chars, but try to break at word boundary
+          const truncated = outputText.substring(0, 80);
+          const lastSpace = truncated.lastIndexOf(' ');
+          contentSummary = lastSpace > 40 ? truncated.substring(0, lastSpace) + '...' : truncated + '...';
+        }
+      }
+      
+      // Use the concise summary if we created one
+      if (contentSummary && contentSummary.length > 10 && contentSummary.length < 200) {
+        summary = contentSummary;
       }
     }
     
