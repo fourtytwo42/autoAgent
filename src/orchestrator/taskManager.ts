@@ -4,6 +4,7 @@ import { agentRegistry } from '@/src/agents/registry';
 import { interestMatcher } from '@/src/agents/matcher';
 import { jobQueue } from '@/src/jobs/queue';
 import { eventsRepository } from '@/src/db/repositories/events.repository';
+import { jobScheduler } from '@/src/jobs/scheduler';
 
 export class TaskManager {
   async createTask(
@@ -146,7 +147,17 @@ export class TaskManager {
         }
       );
 
-      console.log(`Created job ${job.id} for agent ${match.agent.id} on task ${taskId}: ${task.summary.substring(0, 50)}`);
+      console.log(`[TaskManager] Created job ${job.id} for agent ${match.agent.id} on task ${taskId}: ${task.summary.substring(0, 50)}`);
+      console.log(`[TaskManager] Job status: ${job.status}, scheduled_for: ${job.scheduled_for}`);
+      
+      // Try to process the job immediately if scheduler is running
+      try {
+        await jobScheduler.processJobImmediately(job.id);
+        console.log(`[TaskManager] Job ${job.id} processed immediately`);
+      } catch (error) {
+        console.log(`[TaskManager] Job ${job.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      
       assignedAgentIds.push(match.agent.id);
 
       await eventsRepository.create({

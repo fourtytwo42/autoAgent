@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Trash2, Trash } from 'lucide-react';
+import { Play, Trash2 } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -127,29 +127,6 @@ export default function TasksPage() {
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (!confirm('Are you sure you want to delete ALL tasks? This cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/blackboard/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'task' }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Deleted ${data.deletedCount} tasks`);
-        fetchTasks();
-      } else {
-        alert('Failed to delete tasks');
-      }
-    } catch (error) {
-      console.error('Error deleting tasks:', error);
-      alert('Failed to delete tasks');
-    }
-  };
 
   const getStatusBadge = (status?: string) => {
     if (!status) return <Badge variant="outline">Unknown</Badge>;
@@ -212,46 +189,6 @@ export default function TasksPage() {
             <p className="text-muted-foreground mt-1">
               {tasks.length} task{tasks.length !== 1 ? 's' : ''} total
             </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleDeleteAll}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <Trash className="h-4 w-4 mr-2" />
-              Delete All Tasks
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                if (!confirm('Are you sure you want to clear ALL agent work?\n\nThis will delete:\n- All tasks\n- All goals\n- All user requests\n- All agent outputs\n\nThis cannot be undone.')) {
-                  return;
-                }
-                
-                try {
-                  const response = await fetch('/api/tasks/clear-all', {
-                    method: 'POST',
-                  });
-                  if (response.ok) {
-                    const data = await response.json();
-                    const itemsMsg = Object.entries(data.deletedByType).map(([type, count]) => `- ${type}: ${count}`).join('\n');
-                    alert(`Cleared ${data.totalDeleted} items and cancelled ${data.cancelledJobs || 0} jobs:\n${itemsMsg}`);
-                    fetchTasks();
-                    fetchAgentStatus(); // Refresh agent status to clear the working indicators
-                  } else {
-                    alert('Failed to clear agent work');
-                  }
-                } catch (error) {
-                  console.error('Error clearing agent work:', error);
-                  alert('Failed to clear agent work');
-                }
-              }}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <Trash className="h-4 w-4 mr-2" />
-              Clear All Agent Work
-            </Button>
           </div>
         </div>
 

@@ -158,41 +158,32 @@ export class Orchestrator {
     // Run Steward to prioritize goals (async, don't wait)
     this.runStewardAsync();
 
-    // Step 3: Run TaskPlanner to create tasks for this goal (only if new goal, not follow-up)
-    let tasks: BlackboardItem[] = [];
+    // Step 3: Start TaskPlanner in the background (only if new goal, not follow-up)
+    // Don't wait for it - let WeSpeaker respond immediately
     if (!isFollowUp) {
-      const taskPlannerJob = await jobQueue.createRunAgentJob(
+      jobQueue.createRunAgentJob(
         'TaskPlanner',
         {
           goal_id: goal.id,
           goal_summary: goal.summary,
           web_enabled: webEnabled,
         }
-      );
-
-      // Process TaskPlanner job immediately and wait for it to complete
-      await jobScheduler.processJobImmediately(taskPlannerJob.id);
-      
-      // Wait for tasks to be created (poll with timeout)
-      tasks = await blackboardService.findChildren(goal.id);
-      let attempts = 0;
-      const maxAttempts = 20; // 10 seconds max wait
-      while (tasks.length === 0 && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        tasks = await blackboardService.findChildren(goal.id);
-        attempts++;
-      }
-    } else {
-      // For follow-ups, get existing tasks
-      tasks = await blackboardService.findChildren(goal.id);
+      ).then(async (taskPlannerJob) => {
+        console.log(`[Orchestrator] Created TaskPlanner job ${taskPlannerJob.id} for goal ${goal.id}`);
+        // Try to process immediately
+        try {
+          await jobScheduler.processJobImmediately(taskPlannerJob.id);
+          console.log(`[Orchestrator] TaskPlanner job ${taskPlannerJob.id} processed immediately`);
+        } catch (error) {
+          console.log(`[Orchestrator] TaskPlanner job ${taskPlannerJob.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }).catch(error => {
+        console.error('[Orchestrator] Error creating TaskPlanner job:', error);
+      });
     }
 
-    // Step 4: Execute tasks (create jobs for Worker agents)
-    // Tasks are automatically assigned to agents via TaskManager.createTask
-    // But we should wait a bit for them to start processing
-    // For now, we'll let them run async and WeSpeaker will summarize what's planned
-
-    // Step 5: Find WeSpeaker agent
+    // Step 4: Find WeSpeaker agent and respond immediately
+    // Don't wait for tasks - respond right away
     const agentType = await agentRegistry.getAgent('WeSpeaker');
     if (!agentType) {
       throw new Error('WeSpeaker agent not found');
@@ -210,10 +201,10 @@ export class Orchestrator {
       : '';
     
     const contextMessage = isFollowUp
-      ? `${request.message}${historyContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Tasks are being worked on in the background. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally, without listing out tasks.`
-      : `${request.message}${historyContext}\n\nTasks are being created and worked on in the background. Please provide a natural, conversational response to the user without listing tasks or explaining what needs to be done. Just acknowledge their request and let them know you're working on it.`;
+      ? `${request.message}${historyContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally.`
+      : `${request.message}${historyContext}\n\nPlease provide a natural, conversational response to the user. Acknowledge their request and let them know you're working on it, but don't list tasks or explain what needs to be done.`;
 
-    // Execute WeSpeaker to get response
+    // Execute WeSpeaker to get response immediately
     const output = await agent.execute({
       agent_id: 'WeSpeaker',
       model_id: '', // Will be selected by agent
@@ -221,7 +212,6 @@ export class Orchestrator {
         message: contextMessage,
         goal_id: goal.id,
         user_request_id: userRequest.id,
-        task_count: tasks.length,
         web_enabled: webEnabled,
       },
       options: {
@@ -264,10 +254,14 @@ export class Orchestrator {
       },
     });
 
+    // Get tasks that may have been created by TaskPlanner (if any exist yet)
+    const existingTasks = await blackboardService.findChildren(goal.id);
+    const taskItems = existingTasks.filter(t => t.type === 'task');
+
     return {
       response: output.output,
       goalId: goal.id,
-      taskIds: tasks.map((t) => t.id),
+      taskIds: taskItems.map((t) => t.id),
       metadata: {
         agent_id: output.agent_id,
         model_id: output.model_id,

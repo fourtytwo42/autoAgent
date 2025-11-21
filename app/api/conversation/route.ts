@@ -77,28 +77,13 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // First, give an informal response that work is starting
-          const informalResponses = [
-            "Give me a minute and I'll get back to you on that",
-            "Let me work on that for you",
-            "I'm looking into that now",
-            "Hang tight, I'm gathering some info",
-            "Just a sec, let me check on that",
-            "Working on it, I'll be right back",
-            "Let me handle that for you",
-            "I'm on it, give me a moment",
-          ];
-          const randomResponse = informalResponses[Math.floor(Math.random() * informalResponses.length)];
-          
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'status', message: randomResponse })}\n\n`));
-
-          // Process the request
+          // Process the request - no automated status message, just wait for WeSpeaker's response
           const response = await orchestrator.handleUserRequest({
             message,
             metadata,
           });
 
-          // Send the final response
+          // Send the final response from WeSpeaker
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'response', ...response })}\n\n`));
           controller.close();
         } catch (error) {

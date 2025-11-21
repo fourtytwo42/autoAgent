@@ -323,6 +323,48 @@ export default function ConversationPage() {
           >
             Clear
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (!confirm('Are you sure you want to clear ALL data?\n\nThis will delete:\n- All tasks\n- All goals\n- All user requests\n- All agent outputs\n- All conversation history\n- All jobs\n\nThis cannot be undone.')) {
+                return;
+              }
+              
+              try {
+                const response = await fetch('/api/tasks/clear-all', {
+                  method: 'POST',
+                });
+                if (response.ok) {
+                  const data = await response.json();
+                  // Clear local messages
+                  setMessages([]);
+                  setStreamingMessage('');
+                  alert(`Cleared ${data.totalDeleted} items and cancelled ${data.cancelledJobs || 0} jobs`);
+                  // Reload conversation history (should be empty now)
+                  const refreshResponse = await fetch('/api/conversation');
+                  if (refreshResponse.ok) {
+                    const refreshData = await refreshResponse.json();
+                    if (refreshData.messages && Array.isArray(refreshData.messages)) {
+                      const loadedMessages = refreshData.messages.map((msg: any) => ({
+                        ...msg,
+                        timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+                      }));
+                      setMessages(loadedMessages);
+                    }
+                  }
+                } else {
+                  alert('Failed to clear all data');
+                }
+              } catch (error) {
+                console.error('Error clearing all data:', error);
+                alert('Failed to clear all data');
+              }
+            }}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+          >
+            Clear All
+          </Button>
           <div className="flex items-center gap-2">
             <Label htmlFor="debug-mode" className="text-sm">Debug Mode</Label>
             <Switch

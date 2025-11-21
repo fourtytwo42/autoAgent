@@ -78,6 +78,10 @@ export class JobScheduler {
 
     try {
       const pendingJobs = await jobQueue.getPendingJobs(env.MAX_CONCURRENT_JOBS || 5);
+      
+      if (pendingJobs.length > 0) {
+        console.log(`[Scheduler] Processing ${pendingJobs.length} pending jobs`);
+      }
 
       // Process jobs in parallel (up to max concurrent)
       const promises = pendingJobs.map((job) => this.processJob(job));
@@ -99,21 +103,28 @@ export class JobScheduler {
     const processor = this.processors.get(job.type);
 
     if (!processor) {
-      console.error(`No processor found for job type: ${job.type}`);
+      console.error(`[Scheduler] No processor found for job type: ${job.type}`);
       await jobQueue.failJob(job.id, true); // Permanent failure
       return;
     }
 
+    const payload = job.payload as any;
+    const agentId = payload?.agent_id || 'unknown';
+    console.log(`[Scheduler] Processing job ${job.id} for agent ${agentId}`);
+
     try {
       await processor.process(lockedJob);
       await jobQueue.completeJob(job.id);
+      console.log(`[Scheduler] Completed job ${job.id} for agent ${agentId}`);
     } catch (error) {
-      console.error(`Error processing job ${job.id}:`, error);
+      console.error(`[Scheduler] Error processing job ${job.id} for agent ${agentId}:`, error);
       
       // Processor failed - let job queue handle retries
       if (job.attempts >= job.max_attempts) {
+        console.error(`[Scheduler] Job ${job.id} exceeded max attempts, marking as permanently failed`);
         await jobQueue.failJob(job.id, true); // Permanent failure
       } else {
+        console.log(`[Scheduler] Job ${job.id} will retry (attempt ${job.attempts + 1}/${job.max_attempts})`);
         await jobQueue.failJob(job.id, false); // Retry
       }
     }

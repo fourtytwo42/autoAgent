@@ -91,10 +91,16 @@ export class RunAgentProcessor extends BaseJobProcessor {
       options: payload.options,
     };
 
+    console.log(`[RunAgentProcessor] Executing agent ${payload.agent_id}${payload.context?.goal_id ? ` for goal ${payload.context.goal_id}` : ''}`);
+    
     const output = await agent.execute(context);
+
+    console.log(`[RunAgentProcessor] Agent ${payload.agent_id} completed, output length: ${output.output?.length || 0}`);
 
     // Special handling for TaskPlanner - parse output and create tasks
     if (payload.agent_id === 'TaskPlanner' && payload.context?.goal_id) {
+      console.log(`[RunAgentProcessor] TaskPlanner completed for goal ${payload.context.goal_id}`);
+      console.log(`[RunAgentProcessor] TaskPlanner output preview: ${(output.output || '').substring(0, 300)}`);
       await this.handleTaskPlannerOutput(output, payload.context.goal_id as string);
     }
 
@@ -174,7 +180,10 @@ export class RunAgentProcessor extends BaseJobProcessor {
     // Parse TaskPlanner output and create tasks
     // The output can be in various formats: tables, numbered lists, bullet points
     
+    console.log(`[TaskPlanner] Processing output for goal ${goalId}`);
     const taskText = (output.output || '').trim();
+    console.log(`[TaskPlanner] Output length: ${taskText.length}, first 200 chars: ${taskText.substring(0, 200)}`);
+    
     const tasks: Array<{ summary: string; priority: string; agent_count: number; task_type: string; dependencies: number[] }> = [];
 
     const tryParseJsonTasks = () => {
@@ -200,11 +209,11 @@ export class RunAgentProcessor extends BaseJobProcessor {
           const summary = (rawTask.summary || rawTask.description || '').trim();
           if (summary.length < 10) continue; // Require at least 10 chars
           
-          // Filter out explanation text, headers, and non-actionable fragments
+          // Filter out explanation text, headers, dependency descriptions, implementation notes, and non-actionable fragments
           const summaryLower = summary.toLowerCase();
           if (
             summaryLower.startsWith('priority') ||
-            summaryLower.startsWith('task ') && summaryLower.includes('are') ||
+            summaryLower.startsWith('task ') && (summaryLower.includes('are') || summaryLower.includes('must') || summaryLower.includes('requires') || summaryLower.includes('depends')) ||
             summaryLower.includes('rationale') ||
             summaryLower.includes('can be deferred') ||
             summaryLower.includes('can run concurrently') ||
@@ -212,10 +221,22 @@ export class RunAgentProcessor extends BaseJobProcessor {
             summaryLower.includes('parallel tasks') ||
             summaryLower.includes('enhance quality') ||
             summaryLower.includes('essential for') ||
-            summaryLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:"
-            summary.length < 20 && !summaryLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish)\b/i)
+            summaryLower.includes('must finish') ||
+            summaryLower.includes('requires completion') ||
+            summaryLower.includes('relies on') ||
+            summaryLower.includes('depends on') ||
+            summaryLower.includes('should align') ||
+            summaryLower.includes('requires completion of') ||
+            summaryLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:" or "Data Sources:"
+            summaryLower.match(/^(data sources|automation tips|user interaction|implementation|notes|tips|sources):/i) || // Section headers
+            summaryLower.includes('workflow orchestrator') || // Implementation suggestions
+            summaryLower.includes('cache results for') || // Implementation notes
+            summaryLower.includes('api for') || // Data source lists
+            summaryLower.match(/^(tripadvisor|yelp|google|booking\.com|expedia|hotels\.com|weedmaps|leafly|noaa|accuweather)/i) || // Just listing data sources
+            summaryLower.match(/^tasks?\s*\d+/) || // "Task 1" or "Tasks 1-3"
+            summary.length < 20 && !summaryLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|generate|compile|assemble|draft|identify|recommend|provide|list|outline|search|book|reserve|schedule|send|organize|use|compile)\b/i)
           ) {
-            console.log(`Skipping invalid task fragment: "${summary}"`);
+            console.log(`[TaskPlanner] Skipping invalid task fragment: "${summary}"`);
             continue;
           }
 
@@ -251,6 +272,8 @@ export class RunAgentProcessor extends BaseJobProcessor {
     };
 
     tryParseJsonTasks();
+    
+    console.log(`[TaskPlanner] After JSON parsing: ${tasks.length} tasks found`);
     
     if (tasks.length === 0) {
       // First, try to parse markdown tables
@@ -361,11 +384,11 @@ export class RunAgentProcessor extends BaseJobProcessor {
               }
             }
             
-            // Filter out explanation text, headers, and non-actionable fragments
+            // Filter out explanation text, headers, dependency descriptions, implementation notes, and non-actionable fragments
             const descLower = cleanDesc.toLowerCase();
             if (
               descLower.startsWith('priority') ||
-              descLower.startsWith('task ') && descLower.includes('are') ||
+              descLower.startsWith('task ') && (descLower.includes('are') || descLower.includes('must') || descLower.includes('requires') || descLower.includes('depends')) ||
               descLower.includes('rationale') ||
               descLower.includes('can be deferred') ||
               descLower.includes('can run concurrently') ||
@@ -373,11 +396,23 @@ export class RunAgentProcessor extends BaseJobProcessor {
               descLower.includes('parallel tasks') ||
               descLower.includes('enhance quality') ||
               descLower.includes('essential for') ||
-              descLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:"
+              descLower.includes('must finish') ||
+              descLower.includes('requires completion') ||
+              descLower.includes('relies on') ||
+              descLower.includes('depends on') ||
+              descLower.includes('should align') ||
+              descLower.includes('requires completion of') ||
+              descLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:" or "Data Sources:"
+              descLower.match(/^(data sources|automation tips|user interaction|implementation|notes|tips|sources):/i) || // Section headers
+              descLower.includes('workflow orchestrator') || // Implementation suggestions
+              descLower.includes('cache results for') || // Implementation notes
+              descLower.includes('api for') || // Data source lists
+              descLower.match(/^(tripadvisor|yelp|google|booking\.com|expedia|hotels\.com|weedmaps|leafly|noaa|accuweather)/i) || // Just listing data sources
+              descLower.match(/^tasks?\s*\d+/) || // "Task 1" or "Tasks 1-3"
               cleanDesc.length < 20 || // Too short to be a real task
-              !descLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|identify|recommend|provide|list|outline|draft|compile|verify|check|confirm)\b/i) // Must contain action verb
+              !descLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|generate|compile|assemble|draft|identify|recommend|provide|list|outline|search|book|reserve|schedule)\b/i) // Must contain action verb
             ) {
-              console.log(`Skipping invalid task fragment: "${cleanDesc}"`);
+              console.log(`[TaskPlanner] Skipping invalid task fragment: "${cleanDesc}"`);
               continue;
             }
             
@@ -496,6 +531,21 @@ export class RunAgentProcessor extends BaseJobProcessor {
     const goal = await blackboardService.findById(goalId);
     const webEnabled = goal?.dimensions?.web_enabled ?? false;
 
+    console.log(`[TaskPlanner] Total tasks to create: ${tasks.length}`);
+    
+    if (tasks.length === 0) {
+      console.warn(`[TaskPlanner] No tasks found in output. Output was: ${taskText.substring(0, 500)}`);
+      // Still save the output for debugging
+      await blackboardService.createAgentOutput(
+        output.agent_id,
+        output.model_id,
+        goalId,
+        output.output,
+        output.metadata
+      );
+      return;
+    }
+
     // Create tasks in the blackboard with dependencies
     // First pass: create all tasks and map task numbers to IDs
     const taskNumberToId = new Map<number, string>();
@@ -507,10 +557,12 @@ export class RunAgentProcessor extends BaseJobProcessor {
       const taskNumber = i + 1; // Task numbers are 1-indexed
       
       if (!task.summary.trim()) {
+        console.log(`[TaskPlanner] Skipping empty task at index ${i}`);
         continue;
       }
       
       try {
+        console.log(`[TaskPlanner] Creating task ${taskNumber}: ${task.summary.substring(0, 50)}`);
         const taskItem = await taskManager.createTask(
           task.summary,
           goalId,
@@ -532,11 +584,14 @@ export class RunAgentProcessor extends BaseJobProcessor {
         taskNumberToId.set(taskNumber, taskId);
         taskDependencyMap.set(taskNumber, task.dependencies);
         createdTaskIds.push(taskId);
+        console.log(`[TaskPlanner] Created task ${taskNumber} with ID ${taskId}`);
 
       } catch (error) {
-        console.error(`Error creating task from TaskPlanner output:`, error);
+        console.error(`[TaskPlanner] Error creating task ${taskNumber}:`, error);
       }
     }
+    
+    console.log(`[TaskPlanner] Created ${createdTaskIds.length} tasks for goal ${goalId}`);
     
     // Second pass: resolve dependencies (convert task numbers to task IDs)
     for (let i = 0; i < tasks.length; i++) {
