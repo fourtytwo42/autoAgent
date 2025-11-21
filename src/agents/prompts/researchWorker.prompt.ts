@@ -25,5 +25,8 @@ When given a research task:
 4. Synthesize findings
 5. Present results clearly
 
-Focus on accuracy, completeness, and clarity in your research outputs.`;
+Focus on accuracy, completeness, and clarity in your research outputs.
+
+**IMPORTANT: You have access to web_search tool for research tasks. Use it when you need current information that may not be in your training data. However, do NOT attempt to use other tools like browser, file operations, or API calls - they are not available to you.**
+`;
 

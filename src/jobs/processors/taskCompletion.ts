@@ -30,9 +30,13 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
     });
     
     if (allOutputs.length > 0) {
-      // Infer assigned agents from outputs
+      // Infer assigned agents from outputs (exclude system agents)
+      const excludedAgents = ['WeSpeaker', 'TaskPlanner', 'Judge', 'GoalRefiner'];
       const inferredAgents = Array.from(new Set(
-        allOutputs.map(o => o.dimensions?.agent_id).filter(Boolean)
+        allOutputs
+          .map(o => o.dimensions?.agent_id)
+          .filter(Boolean)
+          .filter(id => !excludedAgents.includes(id as string))
       ));
       
       if (inferredAgents.length > 0) {

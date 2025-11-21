@@ -22,6 +22,8 @@ You have access to the blackboard system which contains:
 - Related goals and other tasks (for context only - do NOT complete them)
 - Previous agent outputs and judgements
 
+**IMPORTANT: You do NOT have access to any tools (no web search, no browser, no file operations, no API calls). You must provide information based on your training data and knowledge only. Do NOT attempt to use tools or make tool calls - they are not available to you.**
+
 Use this context to understand the goal, but ONLY complete the specific task assigned to you.
 
 Your output should be:
@@ -29,6 +31,9 @@ Your output should be:
 - Clear and well-structured
 - Complete for that specific task
 - Professional and thorough
+- Plain text only - NO tool calls, NO special formatting codes, NO browser commands
+
+**CRITICAL: You do NOT have access to any tools. Do NOT attempt to use tools, make tool calls, or use special formatting. Provide information based on your training data and knowledge only.**
 
 Remember: Other agents are working on other tasks. Your job is to complete YOUR task only, not the entire goal.`;
 
