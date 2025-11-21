@@ -3,6 +3,7 @@ import { AgentType, AgentExecutionContext, AgentOutput } from '@/src/types/agent
 import { ChatMessage } from '@/src/types/models';
 import { JudgePrompt } from '../prompts/judge.prompt';
 import { blackboardService } from '@/src/blackboard/service';
+import { parseJsonOutput } from '@/src/utils/jsonParser';
 
 export class JudgeAgent extends BaseAgent {
   constructor(agentType?: AgentType) {
@@ -41,14 +42,40 @@ export class JudgeAgent extends BaseAgent {
     const messages = this.buildMessages([userMessage]);
 
     // Execute model call
-    const output = await this.executeModelCall(model, messages, {
+    const rawOutput = await this.executeModelCall(model, messages, {
       temperature: 0.3, // Lower temperature for consistent evaluation
       maxTokens: 20000,
     });
 
-    // Parse score from output (simplified - in production would use structured output)
-    const scoreMatch = output.match(/score[:\s]+([0-9.]+)/i);
-    const score = scoreMatch ? parseFloat(scoreMatch[1]) : 0.5;
+    // Parse JSON output
+    const parseResult = parseJsonOutput(rawOutput);
+    let output: string;
+    let score = 0.5;
+    let scores: Record<string, number> = {};
+    let explanation = '';
+    let strengths: string[] = [];
+    let weaknesses: string[] = [];
+
+    if (parseResult.success && parseResult.data) {
+      const jsonData = parseResult.data as any;
+      score = jsonData.overall_score ?? jsonData.score ?? 0.5;
+      scores = jsonData.scores || {};
+      explanation = jsonData.explanation || '';
+      strengths = jsonData.strengths || [];
+      weaknesses = jsonData.weaknesses || [];
+      output = explanation || JSON.stringify(jsonData, null, 2);
+    } else {
+      console.warn(`[Judge] Failed to parse JSON output: ${parseResult.error}, using raw output`);
+      output = rawOutput;
+      // Fallback: try to extract score from text
+      const scoreMatch = rawOutput.match(/score[:\s]+([0-9.]+)/i);
+      if (scoreMatch) {
+        score = parseFloat(scoreMatch[1]);
+      }
+    }
+
+    // Clamp score to 0-1
+    score = Math.max(0, Math.min(1, score));
 
     // Create judgement in blackboard
     await blackboardService.create({
@@ -57,12 +84,16 @@ export class JudgeAgent extends BaseAgent {
       dimensions: {
         agent_id: agentId,
         agent_output_id: agentOutputId,
-        score: Math.max(0, Math.min(1, score)), // Clamp to 0-1
+        score,
         status: 'completed',
+        ...scores,
       },
       links: { parents: [agentOutputId] },
       detail: {
         reasoning: output,
+        explanation,
+        strengths,
+        weaknesses,
         evaluated_at: new Date().toISOString(),
       },
     });
@@ -80,6 +111,7 @@ export class JudgeAgent extends BaseAgent {
         model_provider: model.provider,
         agent_output_id: agentOutputId,
         score,
+        scores,
       },
     };
   }

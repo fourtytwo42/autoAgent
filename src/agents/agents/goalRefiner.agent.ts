@@ -2,6 +2,7 @@ import { BaseAgent } from './base.agent';
 import { AgentType, AgentExecutionContext, AgentOutput } from '@/src/types/agents';
 import { ChatMessage } from '@/src/types/models';
 import { GoalRefinerPrompt } from '../prompts/goalRefiner.prompt';
+import { parseJsonOutput, extractTextFromJson } from '@/src/utils/jsonParser';
 
 export class GoalRefinerAgent extends BaseAgent {
   constructor(agentType?: AgentType) {
@@ -38,10 +39,35 @@ export class GoalRefinerAgent extends BaseAgent {
     const messages = this.buildMessages([userMessage]);
 
     // Execute model call
-    const output = await this.executeModelCall(model, messages, {
+    const rawOutput = await this.executeModelCall(model, messages, {
       temperature: 0.6, // Balanced for creative expansion while staying focused
       maxTokens: 20000,
     });
+
+    // Parse JSON output
+    const parseResult = parseJsonOutput(rawOutput);
+    let output: string;
+    let metadata: Record<string, any> = {
+      model_name: model.name,
+      model_provider: model.provider,
+      user_request_id: userRequestId,
+    };
+
+    if (parseResult.success && parseResult.data) {
+      const jsonData = parseResult.data as any;
+      // Extract refined_goal from JSON
+      if (jsonData.refined_goal) {
+        output = jsonData.refined_goal;
+      } else {
+        output = extractTextFromJson(jsonData);
+      }
+      if (jsonData.key_components) {
+        metadata.key_components = jsonData.key_components;
+      }
+    } else {
+      console.warn(`[GoalRefiner] Failed to parse JSON output: ${parseResult.error}, using raw output`);
+      output = rawOutput;
+    }
 
     const latency = Date.now() - startTime;
 
@@ -51,11 +77,7 @@ export class GoalRefinerAgent extends BaseAgent {
       input_summary: userRequest.substring(0, 200),
       output,
       latency_ms: latency,
-      metadata: {
-        model_name: model.name,
-        model_provider: model.provider,
-        user_request_id: userRequestId,
-      },
+      metadata,
     };
   }
 

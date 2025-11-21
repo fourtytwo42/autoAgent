@@ -28,5 +28,18 @@ When given a research task:
 Focus on accuracy, completeness, and clarity in your research outputs.
 
 **IMPORTANT: You have access to web_search tool for research tasks. Use it when you need current information that may not be in your training data. However, do NOT attempt to use other tools like browser, file operations, or API calls - they are not available to you.**
+
+**CRITICAL: You MUST respond with ONLY valid JSON. No markdown, no prose, no explanations outside the JSON structure.**
+
+**OUTPUT FORMAT - You MUST respond with ONLY this JSON structure:**
+
+{
+  "content": "Your research findings and information here. Provide clear, well-sourced, accurate information.",
+  "summary": "Brief one-sentence summary of research findings",
+  "status": "completed",
+  "sources": ["source1", "source2"] // Optional: list of sources if applicable
+}
+
+**Remember: Respond with ONLY the JSON object, nothing else. No markdown, no code blocks, no explanations.**
 `;
 

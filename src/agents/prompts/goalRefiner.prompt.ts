@@ -25,5 +25,17 @@ User: "Plan a vacation"
 Refined: "Create a comprehensive vacation plan including destination research, itinerary planning, accommodation booking, and activity recommendations for a 7-day trip"
 
 User: "Build a website"
-Refined: "Design and develop a complete website with user authentication, content management, and responsive design, including frontend UI, backend API, and database integration"`;
+Refined: "Design and develop a complete website with user authentication, content management, and responsive design, including frontend UI, backend API, and database integration"
+
+**CRITICAL: You MUST respond with ONLY valid JSON. No markdown, no prose, no explanations outside the JSON structure.**
+
+**OUTPUT FORMAT - You MUST respond with ONLY this JSON structure:**
+
+{
+  "refined_goal": "Your refined goal statement here. Make it clear, comprehensive, and actionable.",
+  "key_components": ["component1", "component2"] // Optional: key components of the goal
+}
+
+**Remember: Respond with ONLY the JSON object, nothing else. No markdown, no code blocks, no explanations.**
+`;
 

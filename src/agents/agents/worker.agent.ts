@@ -3,6 +3,7 @@ import { AgentType, AgentExecutionContext, AgentOutput } from '@/src/types/agent
 import { ChatMessage } from '@/src/types/models';
 import { WorkerPrompt } from '../prompts/worker.prompt';
 import { blackboardService } from '@/src/blackboard/service';
+import { parseJsonOutput, extractTextFromJson } from '@/src/utils/jsonParser';
 
 export class WorkerAgent extends BaseAgent {
   constructor(agentType?: AgentType) {
@@ -68,20 +69,42 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
 
     // Select model and execute
     const model = await this.selectModel();
-    const responseText = await this.executeModelCall(model, messages, context.options);
+    const rawOutput = await this.executeModelCall(model, messages, context.options);
+
+    // Parse JSON output
+    const parseResult = parseJsonOutput(rawOutput);
+    let output: string;
+    let metadata: Record<string, any> = {
+      task_id: taskId,
+      goal_id: goalId,
+    };
+
+    if (parseResult.success && parseResult.data) {
+      const jsonData = parseResult.data as any;
+      // Extract content from JSON
+      output = extractTextFromJson(jsonData);
+      // Store additional metadata from JSON if present
+      if (jsonData.summary) {
+        metadata.summary = jsonData.summary;
+      }
+      if (jsonData.status) {
+        metadata.status = jsonData.status;
+      }
+    } else {
+      // Fallback: use raw output if JSON parsing fails
+      console.warn(`[Worker] Failed to parse JSON output: ${parseResult.error}, using raw output`);
+      output = rawOutput;
+    }
 
     const latency = Date.now() - startTime;
 
     return {
       agent_id: this.agentType.id,
       model_id: model.id,
-      output: responseText,
+      output,
       input_summary: taskSummary.substring(0, 200),
       latency_ms: latency,
-      metadata: {
-        task_id: taskId,
-        goal_id: goalId,
-      },
+      metadata,
     };
   }
 }

@@ -26,14 +26,26 @@ You have access to the blackboard system which contains:
 
 Use this context to understand the goal, but ONLY complete the specific task assigned to you.
 
+**CRITICAL: You MUST respond with ONLY valid JSON. No markdown, no prose, no explanations outside the JSON structure.**
+
+**OUTPUT FORMAT - You MUST respond with ONLY this JSON structure:**
+
+{
+  "content": "Your task completion output here. Provide clear, complete information focused ONLY on the assigned task.",
+  "summary": "Brief one-sentence summary of what was completed",
+  "status": "completed"
+}
+
 Your output should be:
 - Focused ONLY on the assigned task
 - Clear and well-structured
 - Complete for that specific task
 - Professional and thorough
-- Plain text only - NO tool calls, NO special formatting codes, NO browser commands
+- JSON format ONLY - NO tool calls, NO special formatting codes, NO browser commands
 
 **CRITICAL: You do NOT have access to any tools. Do NOT attempt to use tools, make tool calls, or use special formatting. Provide information based on your training data and knowledge only.**
+
+**Remember: Respond with ONLY the JSON object, nothing else. No markdown, no code blocks, no explanations.**
 
 Remember: Other agents are working on other tasks. Your job is to complete YOUR task only, not the entire goal.`;
 

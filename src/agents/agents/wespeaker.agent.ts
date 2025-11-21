@@ -2,6 +2,7 @@ import { BaseAgent } from './base.agent';
 import { AgentType, AgentExecutionContext, AgentOutput } from '@/src/types/agents';
 import { ChatMessage } from '@/src/types/models';
 import { WeSpeakerPrompt } from '../prompts/wespeaker.prompt';
+import { parseJsonOutput, extractTextFromJson } from '@/src/utils/jsonParser';
 
 export class WeSpeakerAgent extends BaseAgent {
   constructor(agentType?: AgentType) {
@@ -32,10 +33,32 @@ export class WeSpeakerAgent extends BaseAgent {
     const messages = this.buildMessages([userMessage]);
 
     // Execute model call
-    const output = await this.executeModelCall(model, messages, {
+    const rawOutput = await this.executeModelCall(model, messages, {
       temperature: 0.7,
       maxTokens: context.options?.maxTokens || 20000,
     });
+
+    // Parse JSON output
+    const parseResult = parseJsonOutput(rawOutput);
+    let output: string;
+    let metadata: Record<string, any> = {
+      model_name: model.name,
+      model_provider: model.provider,
+    };
+
+    if (parseResult.success && parseResult.data) {
+      const jsonData = parseResult.data as any;
+      // Extract response text from JSON
+      output = extractTextFromJson(jsonData);
+      // Store metadata from JSON if present
+      if (jsonData.metadata) {
+        metadata = { ...metadata, ...jsonData.metadata };
+      }
+    } else {
+      // Fallback: use raw output if JSON parsing fails
+      console.warn(`[WeSpeaker] Failed to parse JSON output: ${parseResult.error}, using raw output`);
+      output = rawOutput;
+    }
 
     const latency = Date.now() - startTime;
 
@@ -45,10 +68,7 @@ export class WeSpeakerAgent extends BaseAgent {
       input_summary: typeof context.input === 'string' ? context.input : JSON.stringify(context.input),
       output,
       latency_ms: latency,
-      metadata: {
-        model_name: model.name,
-        model_provider: model.provider,
-      },
+      metadata,
     };
   }
 

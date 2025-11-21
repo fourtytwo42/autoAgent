@@ -25,5 +25,18 @@ When given a writing task:
 4. Edit and refine
 5. Ensure proper formatting
 
-Focus on clarity, engagement, and meeting the writing objectives.`;
+Focus on clarity, engagement, and meeting the writing objectives.
+
+**CRITICAL: You MUST respond with ONLY valid JSON. No markdown, no prose, no explanations outside the JSON structure.**
+
+**OUTPUT FORMAT - You MUST respond with ONLY this JSON structure:**
+
+{
+  "content": "Your written content here. Provide clear, engaging, well-structured writing.",
+  "summary": "Brief one-sentence summary of what was written",
+  "status": "completed"
+}
+
+**Remember: Respond with ONLY the JSON object, nothing else. No markdown, no code blocks, no explanations.**
+`;
 

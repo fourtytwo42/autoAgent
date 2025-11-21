@@ -3,6 +3,7 @@ import { AgentType, AgentExecutionContext, AgentOutput } from '@/src/types/agent
 import { ChatMessage } from '@/src/types/models';
 import { ResearchWorkerPrompt } from '../prompts/researchWorker.prompt';
 import { blackboardService } from '@/src/blackboard/service';
+import { parseJsonOutput, extractTextFromJson } from '@/src/utils/jsonParser';
 
 export class ResearchWorkerAgent extends BaseAgent {
   constructor(agentType?: AgentType) {
@@ -61,21 +62,37 @@ export class ResearchWorkerAgent extends BaseAgent {
 
     // Select model and execute
     const model = await this.selectModel();
-    const response = await this.executeModelCall(model, messages, context.options);
+    const rawOutput = await this.executeModelCall(model, messages, context.options);
+
+    // Parse JSON output
+    const parseResult = parseJsonOutput(rawOutput);
+    let output: string;
+    let metadata: Record<string, any> = {
+      task_id: taskId,
+      goal_id: goalId,
+      task_type: 'research',
+    };
+
+    if (parseResult.success && parseResult.data) {
+      const jsonData = parseResult.data as any;
+      output = extractTextFromJson(jsonData);
+      if (jsonData.summary) metadata.summary = jsonData.summary;
+      if (jsonData.status) metadata.status = jsonData.status;
+      if (jsonData.sources) metadata.sources = jsonData.sources;
+    } else {
+      console.warn(`[ResearchWorker] Failed to parse JSON output: ${parseResult.error}, using raw output`);
+      output = rawOutput;
+    }
 
     const latency = Date.now() - startTime;
 
     return {
       agent_id: this.agentType.id,
       model_id: model.id,
-      output: response,
+      output,
       input_summary: taskSummary.substring(0, 200),
       latency_ms: latency,
-      metadata: {
-        task_id: taskId,
-        goal_id: goalId,
-        task_type: 'research',
-      },
+      metadata,
     };
   }
 }
