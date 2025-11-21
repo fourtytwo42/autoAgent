@@ -112,9 +112,43 @@ export class BlackboardService {
     metadata?: Record<string, any>
   ): Promise<BlackboardItem> {
     // Use summary from metadata if available (from worker's JSON output), otherwise use default
-    const summary = metadata?.summary && typeof metadata.summary === 'string' && metadata.summary.trim().length > 0
-      ? metadata.summary
-      : `Output from ${agentId}`;
+    // Validate that summary is readable text, not raw JSON
+    let summary = `Output from ${agentId}`;
+    if (metadata?.summary && typeof metadata.summary === 'string' && metadata.summary.trim().length > 0) {
+      const summaryText = metadata.summary.trim();
+      // Reject if it looks like raw JSON (starts with { or [)
+      if (!summaryText.startsWith('{') && !summaryText.startsWith('[') && summaryText.length > 10) {
+        summary = summaryText;
+      } else {
+        // Try to extract meaningful text from the content if summary is JSON
+        console.warn(`[BlackboardService] Summary appears to be JSON, attempting to extract from content`);
+        // Will use default "Output from {agentId}" below
+      }
+    }
+    
+    // If still using default and we have output content, try to create a readable summary
+    if (summary === `Output from ${agentId}` && output && output.length > 20) {
+      // Try to extract readable text from output (skip if it's raw JSON)
+      let contentSummary = output.trim();
+      if (contentSummary.startsWith('{') || contentSummary.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(contentSummary.substring(0, 500));
+          // Try common fields
+          if (parsed.content) contentSummary = parsed.content;
+          else if (parsed.response) contentSummary = parsed.response;
+          else if (parsed.text) contentSummary = parsed.text;
+          else if (parsed.message) contentSummary = parsed.message;
+          else if (parsed.query) contentSummary = `Completed query: ${parsed.query}`;
+          else contentSummary = `Completed task by ${agentId}`;
+        } catch (e) {
+          contentSummary = `Completed task by ${agentId}`;
+        }
+      }
+      // Use first 150 chars as summary if it's readable text
+      if (contentSummary && contentSummary.length > 20 && !contentSummary.startsWith('{') && !contentSummary.startsWith('[')) {
+        summary = contentSummary.substring(0, 150) + (contentSummary.length > 150 ? '...' : '');
+      }
+    }
     
     const outputItem = await this.create({
       type: 'agent_output',

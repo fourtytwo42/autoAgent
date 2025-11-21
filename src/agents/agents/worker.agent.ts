@@ -181,16 +181,46 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
         }
         
         // Store additional metadata from JSON if present
-        if (jsonData.summary) {
-          metadata.summary = jsonData.summary;
-          console.log(`[Worker] Extracted summary from JSON: ${jsonData.summary.substring(0, 100)}...`);
-        } else {
-          // If no summary field, try to create one from content
+        // Extract summary - prioritize summary field, but ensure it's a string and not JSON
+        if (jsonData.summary && typeof jsonData.summary === 'string' && jsonData.summary.trim().length > 0) {
+          // Validate it's not raw JSON
+          if (!jsonData.summary.trim().startsWith('{') && !jsonData.summary.trim().startsWith('[')) {
+            metadata.summary = jsonData.summary.trim();
+            console.log(`[Worker] Extracted summary from JSON: ${metadata.summary.substring(0, 100)}...`);
+          } else {
+            console.warn(`[Worker] Summary field contains JSON, extracting from content instead`);
+            // Fall through to create summary from content
+          }
+        }
+        
+        // If no valid summary yet, create one from content
+        if (!metadata.summary || metadata.summary.trim().length === 0) {
           const contentText = extractTextFromJson(jsonData);
-          if (contentText && contentText.length > 20) {
-            // Use first 150 chars of content as summary
-            metadata.summary = contentText.substring(0, 150) + (contentText.length > 150 ? '...' : '');
-            console.log(`[Worker] Created summary from content: ${metadata.summary.substring(0, 100)}...`);
+          if (contentText && contentText.length > 20 && !contentText.trim().startsWith('{')) {
+            // Use first 150 chars of content as summary, but skip if it looks like JSON
+            const cleanSummary = contentText.substring(0, 200).trim();
+            // Remove any leading JSON structure indicators
+            let summaryText = cleanSummary;
+            if (summaryText.startsWith('{') || summaryText.startsWith('[')) {
+              // Try to extract meaningful text from JSON
+              try {
+                const parsed = typeof jsonData === 'object' ? jsonData : JSON.parse(summaryText);
+                // Try to find a meaningful field to use as summary
+                if (parsed.content) summaryText = parsed.content;
+                else if (parsed.response) summaryText = parsed.response;
+                else if (parsed.text) summaryText = parsed.text;
+                else if (parsed.message) summaryText = parsed.message;
+                else summaryText = String(contentText).substring(0, 150);
+              } catch (e) {
+                summaryText = String(contentText).substring(0, 150);
+              }
+            }
+            
+            // Clean up summary - ensure it's readable text
+            if (summaryText && summaryText.length > 20) {
+              metadata.summary = summaryText.substring(0, 150).trim() + (summaryText.length > 150 ? '...' : '');
+              console.log(`[Worker] Created summary from content: ${metadata.summary.substring(0, 100)}...`);
+            }
           }
         }
         if (jsonData.status) {
@@ -212,15 +242,42 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
     
     // Ensure we have a summary - create one from output if missing
     if (!metadata.summary || metadata.summary.trim().length === 0) {
-      // Create a summary from the output content (first 150 chars)
-      const summaryText = output.substring(0, 150).trim();
-      if (summaryText.length > 20) {
-        metadata.summary = summaryText + (output.length > 150 ? '...' : '');
-        console.log(`[Worker] Created summary from output content: ${metadata.summary}`);
+      // Create a summary from the output content, but skip if it looks like raw JSON
+      let summaryText = output.substring(0, 300).trim();
+      
+      // If output starts with JSON, try to extract meaningful content
+      if (summaryText.startsWith('{') || summaryText.startsWith('[')) {
+        try {
+          // Try to parse and extract a meaningful field
+          const parsed = typeof parseResult.data === 'object' && parseResult.success 
+            ? parseResult.data 
+            : JSON.parse(summaryText);
+          
+          if (parsed.content) summaryText = parsed.content;
+          else if (parsed.response) summaryText = parsed.response;
+          else if (parsed.text) summaryText = parsed.text;
+          else if (parsed.message) summaryText = parsed.message;
+          else if (parsed.query && typeof parsed.query === 'string') {
+            summaryText = `Completed query: ${parsed.query}`;
+          } else {
+            // Use task summary as fallback
+            summaryText = taskSummary.substring(0, 150);
+          }
+        } catch (e) {
+          // If parsing fails, use task summary
+          summaryText = taskSummary.substring(0, 150);
+        }
+      }
+      
+      // Clean and truncate summary
+      summaryText = summaryText.trim();
+      if (summaryText.length > 20 && !summaryText.startsWith('{') && !summaryText.startsWith('[')) {
+        metadata.summary = summaryText.substring(0, 150) + (summaryText.length > 150 ? '...' : '');
+        console.log(`[Worker] Created summary from output: ${metadata.summary}`);
       } else {
-        // Fallback to a generic summary
-        metadata.summary = `Completed task: ${taskSummary.substring(0, 100)}`;
-        console.log(`[Worker] Using fallback summary: ${metadata.summary}`);
+        // Fallback to a generic summary based on task
+        metadata.summary = `Completed: ${taskSummary.substring(0, 120)}...`;
+        console.log(`[Worker] Using task-based summary: ${metadata.summary}`);
       }
     }
     
