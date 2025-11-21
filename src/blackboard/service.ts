@@ -111,9 +111,14 @@ export class BlackboardService {
     output: string,
     metadata?: Record<string, any>
   ): Promise<BlackboardItem> {
+    // Use summary from metadata if available (from worker's JSON output), otherwise use default
+    const summary = metadata?.summary && typeof metadata.summary === 'string' && metadata.summary.trim().length > 0
+      ? metadata.summary
+      : `Output from ${agentId}`;
+    
     const outputItem = await this.create({
       type: 'agent_output',
-      summary: `Output from ${agentId}`,
+      summary: summary,
       dimensions: {
         agent_id: agentId,
         model_id: modelId,

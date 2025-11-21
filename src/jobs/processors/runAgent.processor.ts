@@ -229,28 +229,10 @@ export class RunAgentProcessor extends BaseJobProcessor {
 
         console.log(`[RunAgentProcessor] Created agent output ${agentOutput.id} for task ${taskId}`);
         console.log(`[RunAgentProcessor] Saved content length: ${output.output.length} chars`);
+        console.log(`[RunAgentProcessor] Summary from worker: ${output.metadata?.summary || 'none'}`);
 
-        // Schedule Summarizer to create a summary of this output
-        const summarizerJob = await jobQueue.createRunAgentJob(
-          'Summarizer',
-          {
-            agent_output_id: agentOutput.id,
-            agent_output: output.output,
-            task_id: taskId,
-            goal_id: goalId,
-            agent_id: output.agent_id,
-            model_id: output.model_id,
-          }
-        );
-        console.log(`[RunAgentProcessor] Scheduled Summarizer job ${summarizerJob.id} for agent output ${agentOutput.id}`);
-        
-        // Process Summarizer job immediately to ensure summary is created quickly
-        try {
-          await jobScheduler.processJobImmediately(summarizerJob.id);
-          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} processed immediately`);
-        } catch (error) {
-          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        // Note: No longer scheduling Summarizer for worker outputs since workers provide summaries in their JSON output
+        // The summary is already extracted and saved via metadata.summary in createAgentOutput
 
         // Schedule Judge to evaluate this output
         await jobQueue.createRunAgentJob(
@@ -298,9 +280,29 @@ export class RunAgentProcessor extends BaseJobProcessor {
       // Save WeSpeaker output linked to goal (for task completion responses)
       try {
         console.log(`[RunAgentProcessor] Saving WeSpeaker output for goal ${goalId}`);
+        
+        // Extract summary from WeSpeaker's JSON output if available
+        let weSpeakerSummary = `Output from ${output.agent_id}`;
+        try {
+          const parseResult = parseJsonOutput(output.output);
+          if (parseResult.success && parseResult.data) {
+            const jsonData = parseResult.data as any;
+            if (jsonData.response && typeof jsonData.response === 'string') {
+              // WeSpeaker returns { response: "...", metadata: {...} }
+              weSpeakerSummary = jsonData.response.substring(0, 200); // Use first 200 chars as summary
+            } else if (jsonData.summary && typeof jsonData.summary === 'string') {
+              weSpeakerSummary = jsonData.summary;
+            } else {
+              weSpeakerSummary = extractTextFromJson(jsonData).substring(0, 200);
+            }
+          }
+        } catch (e) {
+          // Use default summary
+        }
+        
         const agentOutput = await blackboardService.create({
           type: 'agent_output',
-          summary: `Output from ${output.agent_id}`,
+          summary: weSpeakerSummary, // Use extracted summary directly
           dimensions: {
             agent_id: output.agent_id,
             model_id: output.model_id,
@@ -316,27 +318,10 @@ export class RunAgentProcessor extends BaseJobProcessor {
             latency_ms: output.latency_ms, // Include latency for model evaluator
           },
         });
-
-        // Schedule Summarizer to create a summary of this WeSpeaker output
-        const summarizerJob = await jobQueue.createRunAgentJob(
-          'Summarizer',
-          {
-            agent_output_id: agentOutput.id,
-            agent_output: output.output,
-            goal_id: goalId,
-            agent_id: output.agent_id,
-            model_id: output.model_id,
-          }
-        );
-        console.log(`[RunAgentProcessor] Scheduled Summarizer job ${summarizerJob.id} for WeSpeaker output ${agentOutput.id}`);
         
-        // Process Summarizer job immediately
-        try {
-          await jobScheduler.processJobImmediately(summarizerJob.id);
-          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} processed immediately`);
-        } catch (error) {
-          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        console.log(`[RunAgentProcessor] Created WeSpeaker output ${agentOutput.id} with summary: ${weSpeakerSummary.substring(0, 100)}...`);
+        
+        // Note: No longer using Summarizer agent since agents provide summaries in their JSON output
         
         console.log(`[RunAgentProcessor] Created WeSpeaker output ${agentOutput.id} for goal ${goalId}`);
         
