@@ -4,6 +4,7 @@ import { ChatMessage } from '@/src/types/models';
 import { WorkerPrompt } from '../prompts/worker.prompt';
 import { blackboardService } from '@/src/blackboard/service';
 import { parseJsonOutput, extractTextFromJson } from '@/src/utils/jsonParser';
+import { createUserQueryRequest } from '@/src/blackboard/userQueryHandler';
 
 export class WorkerAgent extends BaseAgent {
   constructor(agentType?: AgentType) {
@@ -38,6 +39,27 @@ export class WorkerAgent extends BaseAgent {
         if (task.dimensions?.priority) {
           relatedContext += `Priority: ${task.dimensions.priority}\n`;
         }
+      }
+      
+      // Check for user responses if this is a continuation
+      if (context.input.continuation && context.input.user_response) {
+        relatedContext += `\n**User Response to Previous Question:**\n${context.input.user_response}\n\nUse this information to complete your task.`;
+      }
+      
+      // Check for pending user responses
+      const userResponses = await blackboardService.query({
+        type: 'user_response',
+        dimensions: {
+          task_id: taskId,
+          status: 'answered',
+        },
+        parent_id: taskId,
+      });
+      
+      if (userResponses.length > 0) {
+        const latestResponse = userResponses[userResponses.length - 1];
+        const answer = (latestResponse.detail as any)?.answer || latestResponse.summary;
+        relatedContext += `\n**User Response:**\n${answer}\n\nUse this information to complete your task.`;
       }
     }
 
@@ -81,14 +103,35 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
 
     if (parseResult.success && parseResult.data) {
       const jsonData = parseResult.data as any;
-      // Extract content from JSON
-      output = extractTextFromJson(jsonData);
-      // Store additional metadata from JSON if present
-      if (jsonData.summary) {
-        metadata.summary = jsonData.summary;
-      }
-      if (jsonData.status) {
-        metadata.status = jsonData.status;
+      
+      // Check if worker is requesting user information
+      if (jsonData.status === 'waiting_for_user' && jsonData.user_query && taskId) {
+        try {
+          const question = jsonData.user_query.question || 'I need some information to continue.';
+          const queryContext = jsonData.user_query.context || jsonData.content || '';
+          
+          await createUserQueryRequest(taskId, question, queryContext);
+          
+          // Return a message indicating we're waiting for user input
+          output = jsonData.content || `Waiting for user response to: ${question}`;
+          metadata.status = 'waiting_for_user';
+          metadata.user_query_requested = true;
+          
+          console.log(`[Worker] Requested user input for task ${taskId}: ${question}`);
+        } catch (error) {
+          console.error(`[Worker] Error creating user query request:`, error);
+          output = extractTextFromJson(jsonData);
+        }
+      } else {
+        // Extract content from JSON
+        output = extractTextFromJson(jsonData);
+        // Store additional metadata from JSON if present
+        if (jsonData.summary) {
+          metadata.summary = jsonData.summary;
+        }
+        if (jsonData.status) {
+          metadata.status = jsonData.status;
+        }
       }
     } else {
       // Fallback: use raw output if JSON parsing fails

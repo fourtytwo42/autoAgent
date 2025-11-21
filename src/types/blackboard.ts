@@ -22,7 +22,9 @@ export type BlackboardItemType =
   | 'agent_proposal'
   | 'architecture_vote'
   | 'memory_entry'
-  | 'metric';
+  | 'metric'
+  | 'user_query_request'
+  | 'user_response';
 
 export interface BlackboardQuery {
   type?: BlackboardItemType | BlackboardItemType[];

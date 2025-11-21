@@ -100,13 +100,17 @@ export class RunAgentProcessor extends BaseJobProcessor {
       try {
         const task = await blackboardService.findById(taskId);
         if (task && task.dimensions?.status !== 'completed' && task.dimensions?.status !== 'working') {
+          // Preserve assigned_agent and assigned_agents when updating to working
           await blackboardService.update(taskId, {
             dimensions: {
               ...(task.dimensions || {}),
               status: 'working',
+              // Ensure assigned_agent is set if we have one in the payload
+              assigned_agent: task.dimensions?.assigned_agent || payload.agent_id,
+              assigned_agents: task.dimensions?.assigned_agents || [payload.agent_id],
             },
           });
-          console.log(`[RunAgentProcessor] Updated task ${taskId} status to working (before agent execution)`);
+          console.log(`[RunAgentProcessor] Updated task ${taskId} status to working (before agent execution) with assigned agent: ${payload.agent_id}`);
         }
       } catch (error) {
         console.error(`[RunAgentProcessor] Error updating task status to working:`, error);

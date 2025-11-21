@@ -232,14 +232,29 @@ export class Orchestrator {
       }
     }
     
+    // Check for pending user query requests
+    const pendingQueries = await blackboardService.query({
+      type: 'user_query_request',
+      dimensions: {
+        goal_id: goal.id,
+        status: 'pending',
+      },
+    });
+    
+    let queryContext = '';
+    if (pendingQueries.length > 0) {
+      const query = pendingQueries[0];
+      queryContext = `\n\n**IMPORTANT: You need to ask the user a question:**\nQuestion: ${query.summary}\n${(query.detail as any)?.context ? `Context: ${(query.detail as any).context}` : ''}\n\nAsk this question naturally in your response.`;
+    }
+    
     // Build context for WeSpeaker
     const historyContext = conversationHistory.length > 0
       ? `\n\nPrevious conversation:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}`
       : '';
     
     const contextMessage = isFollowUp
-      ? `${request.message}${historyContext}${taskContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally.`
-      : `${request.message}${historyContext}${taskContext}\n\nPlease provide a natural, conversational response to the user. Acknowledge their request and let them know you're working on it, but don't list tasks or explain what needs to be done.`;
+      ? `${request.message}${historyContext}${taskContext}${queryContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally.`
+      : `${request.message}${historyContext}${taskContext}${queryContext}\n\nPlease provide a natural, conversational response to the user. Acknowledge their request and let them know you're working on it, but don't list tasks or explain what needs to be done.`;
 
     // Execute WeSpeaker to get response immediately
     const output = await agent.execute({

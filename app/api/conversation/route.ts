@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { orchestrator } from '@/src/orchestrator/orchestrator';
 import { blackboardService } from '@/src/blackboard/service';
+import { markUserQueryAnswered } from '@/src/blackboard/userQueryHandler';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +78,22 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Check if this is a response to a pending user query request
+          const pendingQueries = await blackboardService.query({
+            type: 'user_query_request',
+            dimensions: {
+              status: 'pending',
+            },
+            limit: 1,
+          });
+          
+          if (pendingQueries.length > 0) {
+            const queryRequest = pendingQueries[0];
+            // Mark the query as answered
+            await markUserQueryAnswered(queryRequest.id, message);
+            console.log(`[Conversation] Marked user query ${queryRequest.id} as answered`);
+          }
+          
           // Process the request - no automated status message, just wait for WeSpeaker's response
           const response = await orchestrator.handleUserRequest({
             message,
