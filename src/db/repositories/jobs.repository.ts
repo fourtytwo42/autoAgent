@@ -4,13 +4,25 @@ import { Job, JobRow, JobType, JobStatus } from '@/src/types/jobs';
 import { randomUUID } from 'crypto';
 
 export class JobsRepository {
-  constructor(private pool: Pool = getDatabasePool()) {}
+  private _pool: Pool | null = null;
+
+  constructor(private pool?: Pool) {}
+
+  private get poolInstance(): Pool {
+    if (this.pool) {
+      return this.pool;
+    }
+    if (!this._pool) {
+      this._pool = getDatabasePool();
+    }
+    return this._pool;
+  }
 
   async create(job: Omit<Job, 'id' | 'created_at' | 'updated_at' | 'status' | 'attempts' | 'locked_at' | 'locked_by'>): Promise<JobRow> {
     const id = randomUUID();
     const now = new Date();
 
-    const result = await this.pool.query<JobRow>(
+    const result = await this.poolInstance.query<JobRow>(
       `INSERT INTO jobs (
         id, type, payload, status, attempts, max_attempts,
         scheduled_for, locked_at, locked_by, created_at, updated_at
@@ -35,7 +47,7 @@ export class JobsRepository {
   }
 
   async findById(id: string): Promise<JobRow | null> {
-    const result = await this.pool.query<JobRow>(
+    const result = await this.poolInstance.query<JobRow>(
       'SELECT * FROM jobs WHERE id = $1',
       [id]
     );
@@ -44,7 +56,7 @@ export class JobsRepository {
   }
 
   async findPending(limit: number = 10): Promise<JobRow[]> {
-    const result = await this.pool.query<JobRow>(
+    const result = await this.poolInstance.query<JobRow>(
       `SELECT * FROM jobs
        WHERE status = 'pending'
          AND scheduled_for <= now()
@@ -58,7 +70,7 @@ export class JobsRepository {
   }
 
   async findByStatus(status: JobStatus): Promise<JobRow[]> {
-    const result = await this.pool.query<JobRow>(
+    const result = await this.poolInstance.query<JobRow>(
       'SELECT * FROM jobs WHERE status = $1 ORDER BY created_at DESC',
       [status]
     );
@@ -67,7 +79,7 @@ export class JobsRepository {
   }
 
   async lock(jobId: string, lockedBy: string): Promise<JobRow | null> {
-    const result = await this.pool.query<JobRow>(
+    const result = await this.poolInstance.query<JobRow>(
       `UPDATE jobs
        SET status = 'running',
            locked_at = now(),
@@ -84,7 +96,7 @@ export class JobsRepository {
   }
 
   async complete(jobId: string): Promise<JobRow | null> {
-    const result = await this.pool.query<JobRow>(
+    const result = await this.poolInstance.query<JobRow>(
       `UPDATE jobs
        SET status = 'completed',
            locked_at = null,
@@ -103,7 +115,7 @@ export class JobsRepository {
       const job = await this.findById(jobId);
       if (job && job.attempts >= job.max_attempts) {
         // Mark as failed permanently
-        const result = await this.pool.query<JobRow>(
+        const result = await this.poolInstance.query<JobRow>(
           `UPDATE jobs
            SET status = 'failed',
                locked_at = null,
@@ -117,7 +129,7 @@ export class JobsRepository {
         return result.rows[0] ? this.mapRow(result.rows[0]) : null;
       } else {
         // Increment attempts and reschedule
-        const result = await this.pool.query<JobRow>(
+        const result = await this.poolInstance.query<JobRow>(
           `UPDATE jobs
            SET status = 'pending',
                attempts = attempts + 1,
@@ -133,7 +145,7 @@ export class JobsRepository {
         return result.rows[0] ? this.mapRow(result.rows[0]) : null;
       }
     } else {
-      const result = await this.pool.query<JobRow>(
+      const result = await this.poolInstance.query<JobRow>(
         `UPDATE jobs
          SET status = 'failed',
              locked_at = null,
@@ -149,7 +161,7 @@ export class JobsRepository {
   }
 
   async unlock(jobId: string): Promise<void> {
-    await this.pool.query(
+    await this.poolInstance.query(
       `UPDATE jobs
        SET locked_at = null,
            locked_by = null,
@@ -160,7 +172,7 @@ export class JobsRepository {
   }
 
   async delete(jobId: string): Promise<boolean> {
-    const result = await this.pool.query('DELETE FROM jobs WHERE id = $1', [jobId]);
+    const result = await this.poolInstance.query('DELETE FROM jobs WHERE id = $1', [jobId]);
 
     return result.rowCount ? result.rowCount > 0 : false;
   }

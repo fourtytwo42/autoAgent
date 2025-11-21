@@ -3,14 +3,26 @@ import { getDatabasePool } from '@/src/config/database';
 import { AgentType, AgentTypeRow } from '@/src/types/agents';
 
 export class AgentTypesRepository {
-  constructor(private pool: Pool = getDatabasePool()) {}
+  private _pool: Pool | null = null;
+
+  constructor(private pool?: Pool) {}
+
+  private get poolInstance(): Pool {
+    if (this.pool) {
+      return this.pool;
+    }
+    if (!this._pool) {
+      this._pool = getDatabasePool();
+    }
+    return this._pool;
+  }
 
   async create(
     agentType: Omit<AgentType, 'created_at' | 'updated_at'>
   ): Promise<AgentTypeRow> {
     const now = new Date();
 
-    const result = await this.pool.query<AgentTypeRow>(
+    const result = await this.poolInstance.query<AgentTypeRow>(
       `INSERT INTO agent_types (
         id, description, system_prompt, modalities, interests, permissions,
         is_core, is_enabled, created_at, updated_at
@@ -34,7 +46,7 @@ export class AgentTypesRepository {
   }
 
   async findById(id: string): Promise<AgentTypeRow | null> {
-    const result = await this.pool.query<AgentTypeRow>(
+    const result = await this.poolInstance.query<AgentTypeRow>(
       'SELECT * FROM agent_types WHERE id = $1',
       [id]
     );
@@ -63,7 +75,7 @@ export class AgentTypesRepository {
 
     query += ' ORDER BY created_at DESC';
 
-    const result = await this.pool.query<AgentTypeRow>(query, params);
+    const result = await this.poolInstance.query<AgentTypeRow>(query, params);
     return result.rows.map((row) => this.mapRow(row));
   }
 
@@ -99,7 +111,7 @@ export class AgentTypesRepository {
     params.push(new Date());
     params.push(id);
 
-    const result = await this.pool.query<AgentTypeRow>(
+    const result = await this.poolInstance.query<AgentTypeRow>(
       `UPDATE agent_types SET ${updateFields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
       params
     );
@@ -108,7 +120,7 @@ export class AgentTypesRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.poolInstance.query(
       'DELETE FROM agent_types WHERE id = $1',
       [id]
     );

@@ -3,12 +3,24 @@ import { getDatabasePool } from '@/src/config/database';
 import { AgentMetrics, AgentMetricsRow } from '@/src/types/agents';
 
 export class AgentMetricsRepository {
-  constructor(private pool: Pool = getDatabasePool()) {}
+  private _pool: Pool | null = null;
+
+  constructor(private pool?: Pool) {}
+
+  private get poolInstance(): Pool {
+    if (this.pool) {
+      return this.pool;
+    }
+    if (!this._pool) {
+      this._pool = getDatabasePool();
+    }
+    return this._pool;
+  }
 
   async createOrUpdate(metrics: AgentMetrics): Promise<AgentMetricsRow> {
     const now = new Date();
 
-    const result = await this.pool.query<AgentMetricsRow>(
+    const result = await this.poolInstance.query<AgentMetricsRow>(
       `INSERT INTO agent_metrics (
         agent_id, usage_count, avg_score, avg_latency_ms, last_used_at,
         created_at, updated_at
@@ -35,7 +47,7 @@ export class AgentMetricsRepository {
   }
 
   async findByAgentId(agentId: string): Promise<AgentMetricsRow | null> {
-    const result = await this.pool.query<AgentMetricsRow>(
+    const result = await this.poolInstance.query<AgentMetricsRow>(
       'SELECT * FROM agent_metrics WHERE agent_id = $1',
       [agentId]
     );
@@ -44,7 +56,7 @@ export class AgentMetricsRepository {
   }
 
   async findAll(): Promise<AgentMetricsRow[]> {
-    const result = await this.pool.query<AgentMetricsRow>(
+    const result = await this.poolInstance.query<AgentMetricsRow>(
       'SELECT * FROM agent_metrics ORDER BY last_used_at DESC NULLS LAST'
     );
 
@@ -55,7 +67,7 @@ export class AgentMetricsRepository {
     const existing = await this.findByAgentId(agentId);
 
     if (existing) {
-      const result = await this.pool.query<AgentMetricsRow>(
+      const result = await this.poolInstance.query<AgentMetricsRow>(
         `UPDATE agent_metrics
          SET usage_count = usage_count + 1,
              last_used_at = now(),
@@ -103,7 +115,7 @@ export class AgentMetricsRepository {
     params.push(new Date());
     params.push(agentId);
 
-    const result = await this.pool.query<AgentMetricsRow>(
+    const result = await this.poolInstance.query<AgentMetricsRow>(
       `UPDATE agent_metrics SET ${updateFields.join(', ')} WHERE agent_id = $${paramIndex} RETURNING *`,
       params
     );

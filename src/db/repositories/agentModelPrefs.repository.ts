@@ -4,13 +4,25 @@ import { AgentModelPreference, AgentModelPrefRow } from '@/src/types/agents';
 import { randomUUID } from 'crypto';
 
 export class AgentModelPrefsRepository {
-  constructor(private pool: Pool = getDatabasePool()) {}
+  private _pool: Pool | null = null;
+
+  constructor(private pool?: Pool) {}
+
+  private get poolInstance(): Pool {
+    if (this.pool) {
+      return this.pool;
+    }
+    if (!this._pool) {
+      this._pool = getDatabasePool();
+    }
+    return this._pool;
+  }
 
   async create(pref: Omit<AgentModelPreference, 'id' | 'created_at'>): Promise<AgentModelPrefRow> {
     const id = randomUUID();
     const now = new Date();
 
-    const result = await this.pool.query<AgentModelPrefRow>(
+    const result = await this.poolInstance.query<AgentModelPrefRow>(
       `INSERT INTO agent_model_prefs (id, agent_id, model_id, priority, weight, created_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
@@ -21,7 +33,7 @@ export class AgentModelPrefsRepository {
   }
 
   async findByAgentId(agentId: string): Promise<AgentModelPrefRow[]> {
-    const result = await this.pool.query<AgentModelPrefRow>(
+    const result = await this.poolInstance.query<AgentModelPrefRow>(
       'SELECT * FROM agent_model_prefs WHERE agent_id = $1 ORDER BY priority ASC, weight DESC',
       [agentId]
     );
@@ -30,7 +42,7 @@ export class AgentModelPrefsRepository {
   }
 
   async findByModelId(modelId: string): Promise<AgentModelPrefRow[]> {
-    const result = await this.pool.query<AgentModelPrefRow>(
+    const result = await this.poolInstance.query<AgentModelPrefRow>(
       'SELECT * FROM agent_model_prefs WHERE model_id = $1 ORDER BY priority ASC',
       [modelId]
     );
@@ -39,7 +51,7 @@ export class AgentModelPrefsRepository {
   }
 
   async find(agentId: string, modelId: string): Promise<AgentModelPrefRow | null> {
-    const result = await this.pool.query<AgentModelPrefRow>(
+    const result = await this.poolInstance.query<AgentModelPrefRow>(
       'SELECT * FROM agent_model_prefs WHERE agent_id = $1 AND model_id = $2',
       [agentId, modelId]
     );
@@ -72,7 +84,7 @@ export class AgentModelPrefsRepository {
 
     params.push(agentId, modelId);
 
-    const result = await this.pool.query<AgentModelPrefRow>(
+    const result = await this.poolInstance.query<AgentModelPrefRow>(
       `UPDATE agent_model_prefs SET ${updateFields.join(', ')}
        WHERE agent_id = $${paramIndex++} AND model_id = $${paramIndex}
        RETURNING *`,
@@ -83,7 +95,7 @@ export class AgentModelPrefsRepository {
   }
 
   async delete(agentId: string, modelId: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.poolInstance.query(
       'DELETE FROM agent_model_prefs WHERE agent_id = $1 AND model_id = $2',
       [agentId, modelId]
     );
@@ -92,7 +104,7 @@ export class AgentModelPrefsRepository {
   }
 
   async deleteByAgentId(agentId: string): Promise<number> {
-    const result = await this.pool.query(
+    const result = await this.poolInstance.query(
       'DELETE FROM agent_model_prefs WHERE agent_id = $1',
       [agentId]
     );

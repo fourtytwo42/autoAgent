@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { orchestrator } from '@/src/orchestrator/orchestrator';
 
 export async function POST(request: NextRequest) {

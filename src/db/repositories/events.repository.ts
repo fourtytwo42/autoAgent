@@ -4,13 +4,25 @@ import { Event, EventRow, EventType } from '@/src/types/events';
 import { randomUUID } from 'crypto';
 
 export class EventsRepository {
-  constructor(private pool: Pool = getDatabasePool()) {}
+  private _pool: Pool | null = null;
+
+  constructor(private pool?: Pool) {}
+
+  private get poolInstance(): Pool {
+    if (this.pool) {
+      return this.pool;
+    }
+    if (!this._pool) {
+      this._pool = getDatabasePool();
+    }
+    return this._pool;
+  }
 
   async create(event: Omit<Event, 'id' | 'created_at'>): Promise<EventRow> {
     const id = randomUUID();
     const now = new Date();
 
-    const result = await this.pool.query<EventRow>(
+    const result = await this.poolInstance.query<EventRow>(
       `INSERT INTO events (
         id, type, agent_id, model_id, blackboard_item_id, job_id, data, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -31,7 +43,7 @@ export class EventsRepository {
   }
 
   async findById(id: string): Promise<EventRow | null> {
-    const result = await this.pool.query<EventRow>(
+    const result = await this.poolInstance.query<EventRow>(
       'SELECT * FROM events WHERE id = $1',
       [id]
     );
@@ -40,7 +52,7 @@ export class EventsRepository {
   }
 
   async findByType(type: EventType, limit: number = 100): Promise<EventRow[]> {
-    const result = await this.pool.query<EventRow>(
+    const result = await this.poolInstance.query<EventRow>(
       'SELECT * FROM events WHERE type = $1 ORDER BY created_at DESC LIMIT $2',
       [type, limit]
     );
@@ -49,7 +61,7 @@ export class EventsRepository {
   }
 
   async findByAgentId(agentId: string, limit: number = 100): Promise<EventRow[]> {
-    const result = await this.pool.query<EventRow>(
+    const result = await this.poolInstance.query<EventRow>(
       'SELECT * FROM events WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2',
       [agentId, limit]
     );
@@ -58,7 +70,7 @@ export class EventsRepository {
   }
 
   async findByModelId(modelId: string, limit: number = 100): Promise<EventRow[]> {
-    const result = await this.pool.query<EventRow>(
+    const result = await this.poolInstance.query<EventRow>(
       'SELECT * FROM events WHERE model_id = $1 ORDER BY created_at DESC LIMIT $2',
       [modelId, limit]
     );
@@ -67,7 +79,7 @@ export class EventsRepository {
   }
 
   async findByBlackboardItemId(blackboardItemId: string, limit: number = 100): Promise<EventRow[]> {
-    const result = await this.pool.query<EventRow>(
+    const result = await this.poolInstance.query<EventRow>(
       'SELECT * FROM events WHERE blackboard_item_id = $1 ORDER BY created_at DESC LIMIT $2',
       [blackboardItemId, limit]
     );
@@ -151,7 +163,7 @@ export class EventsRepository {
       params.push(filters.offset);
     }
 
-    const result = await this.pool.query<EventRow>(sql, params);
+    const result = await this.poolInstance.query<EventRow>(sql, params);
     return result.rows.map((row) => this.mapRow(row));
   }
 

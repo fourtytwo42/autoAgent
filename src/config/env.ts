@@ -4,9 +4,14 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// Check if we're in build phase
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' || 
+                     process.env.NEXT_PHASE === 'phase-development-build' ||
+                     process.env.NEXT_PHASE === 'phase-export';
+
 const envSchema = z.object({
-  // Database
-  DATABASE_URL: z.string().url(),
+  // Database - optional during build, required at runtime
+  DATABASE_URL: isBuildPhase ? z.string().url().optional() : z.string().url(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Provider API Keys

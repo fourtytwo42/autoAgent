@@ -4,13 +4,25 @@ import { ModelConfig, ModelRow, ProviderType, Modality } from '@/src/types/model
 import { randomUUID } from 'crypto';
 
 export class ModelsRepository {
-  constructor(private pool: Pool = getDatabasePool()) {}
+  private _pool: Pool | null = null;
+
+  constructor(private pool?: Pool) {}
+
+  private get poolInstance(): Pool {
+    if (this.pool) {
+      return this.pool;
+    }
+    if (!this._pool) {
+      this._pool = getDatabasePool();
+    }
+    return this._pool;
+  }
 
   async create(model: Omit<ModelConfig, 'id' | 'created_at' | 'updated_at'>): Promise<ModelRow> {
     const id = randomUUID();
     const now = new Date();
 
-    const result = await this.pool.query<ModelRow>(
+    const result = await this.poolInstance.query<ModelRow>(
       `INSERT INTO models (
         id, name, provider, display_name, is_enabled, modalities,
         context_window, avg_latency_ms, cost_per_1k_tokens,
@@ -41,7 +53,7 @@ export class ModelsRepository {
   }
 
   async findById(id: string): Promise<ModelRow | null> {
-    const result = await this.pool.query<ModelRow>(
+    const result = await this.poolInstance.query<ModelRow>(
       'SELECT * FROM models WHERE id = $1',
       [id]
     );
@@ -75,7 +87,7 @@ export class ModelsRepository {
 
     query += ' ORDER BY created_at DESC';
 
-    const result = await this.pool.query<ModelRow>(query, params);
+    const result = await this.poolInstance.query<ModelRow>(query, params);
     return result.rows;
   }
 
@@ -123,7 +135,7 @@ export class ModelsRepository {
     params.push(new Date());
     params.push(id);
 
-    const result = await this.pool.query<ModelRow>(
+    const result = await this.poolInstance.query<ModelRow>(
       `UPDATE models SET ${updateFields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
       params
     );
@@ -132,7 +144,7 @@ export class ModelsRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const result = await this.pool.query(
+    const result = await this.poolInstance.query(
       'DELETE FROM models WHERE id = $1',
       [id]
     );

@@ -30,15 +30,16 @@
 
 ## ⚠️ Known Issues
 
-1. **Build Error**: Next.js build fails during static analysis of API routes
-   - Error: "Failed to collect page data for /api/blackboard"
-   - Likely cause: Database connection initialized at module load time
-   - Fix needed: Make database connections lazy or handle build-time gracefully
+1. **Build Error**: ✅ FIXED - Database connections are now lazy-loaded
+   - All repositories use lazy pool initialization
+   - Environment variables are optional during build
+   - All API routes marked as dynamic
 
-2. **Tests**: Most tests are placeholders/examples
-   - Need comprehensive unit tests
-   - Need integration tests for new providers
-   - Need E2E tests for frontend
+2. **Tests**: ✅ IMPROVED - Comprehensive test suite created
+   - ✅ Unit tests: 39 tests passing (router, evaluator, matcher, query builder, orchestrator)
+   - ✅ Integration tests: Created for providers, ensemble, agents, jobs
+   - ✅ E2E tests: Created for all API endpoints
+   - ⚠️ Some integration tests need database permission fixes (test environment issue)
 
 3. **Frontend**: Some features may need refinement
    - Streaming UI needs testing
