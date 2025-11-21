@@ -6,6 +6,7 @@ import AgentTrace from './components/debug/AgentTrace';
 import ModelSelector from './components/debug/ModelSelector';
 import GoalTree from './components/debug/GoalTree';
 import Button from './components/ui/Button';
+import { Card, Input, Switch } from '@heroui/react';
 
 interface Message {
   id: string;
@@ -94,15 +95,12 @@ export default function ConversationPage() {
 
     try {
       if (debugMode) {
-        // Use streaming
         const response = await fetch('/api/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: messageText }),
         });
-        // SSE will handle the response
       } else {
-        // Use regular API
         const response = await fetch('/api/conversation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -136,68 +134,148 @@ export default function ConversationPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen max-h-[calc(100vh-4rem)]">
-      <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-700">
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: 'calc(100vh - 4rem)',
+      maxHeight: 'calc(100vh - 4rem)',
+      padding: '24px',
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px',
+        paddingBottom: '24px',
+        borderBottom: '1px solid #27272a',
+      }}>
         <div>
-          <h1 className="text-3xl font-bold text-white mb-1">Conversation</h1>
-          <p className="text-gray-400 text-sm">Chat with the AI agent system</p>
+          <h1 style={{
+            fontSize: '30px',
+            fontWeight: 'bold',
+            color: 'white',
+            marginBottom: '4px',
+          }}>Conversation</h1>
+          <p style={{
+            fontSize: '14px',
+            color: '#a1a1aa',
+          }}>Chat with the AI agent system</p>
         </div>
-        <label className="flex items-center space-x-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={debugMode}
-            onChange={(e) => setDebugMode(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+        }}>
+          <Switch
+            isSelected={debugMode}
+            onValueChange={setDebugMode}
+            size="sm"
           />
-          <span className="text-sm text-gray-300">Debug Mode</span>
-        </label>
+          <span style={{
+            fontSize: '14px',
+            color: '#d4d4d8',
+          }}>Debug Mode</span>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto mb-6 space-y-4 p-6 bg-gray-800 rounded-lg">
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        marginBottom: '24px',
+        padding: '24px',
+        backgroundColor: '#18181b',
+        borderRadius: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+      }}>
         {messages.length === 0 && (
-          <div className="text-center text-gray-400 mt-8">
+          <div style={{
+            textAlign: 'center',
+            color: '#a1a1aa',
+            marginTop: '32px',
+          }}>
             Start a conversation by typing a message below.
           </div>
         )}
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            style={{
+              display: 'flex',
+              justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+            }}
           >
-            <div
-              className={`max-w-2xl rounded-2xl px-5 py-4 shadow-md ${
-                message.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-100 border border-gray-600'
-              }`}
+            <Card
+              style={{
+                maxWidth: '672px',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                backgroundColor: message.role === 'user' ? '#2563eb' : '#27272a',
+                color: message.role === 'user' ? 'white' : '#e4e4e7',
+                border: message.role === 'user' ? 'none' : '1px solid #3f3f46',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+              }}
             >
-              <div className="whitespace-pre-wrap break-words">{message.content}</div>
+              <div style={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                lineHeight: '1.6',
+              }}>{message.content}</div>
               {debugMode && (
-                <div className={`text-xs mt-2 opacity-75 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
+                <div style={{
+                  fontSize: '12px',
+                  marginTop: '8px',
+                  opacity: 0.75,
+                  color: message.role === 'user' ? 'rgba(255,255,255,0.8)' : '#a1a1aa',
+                }}>
                   {message.timestamp.toLocaleTimeString()}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         ))}
         {(isLoading || streamingMessage) && (
-          <div className="flex justify-start">
-            <div className="bg-gray-700 rounded-2xl px-5 py-4 border border-gray-600 shadow-md">
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <Card style={{
+              padding: '16px 20px',
+              borderRadius: '16px',
+              backgroundColor: '#27272a',
+              border: '1px solid #3f3f46',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            }}>
               {streamingMessage ? (
-                <div className="whitespace-pre-wrap break-words text-gray-100">{streamingMessage}</div>
+                <div style={{
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  color: '#e4e4e7',
+                }}>{streamingMessage}</div>
               ) : (
-                <div className="animate-pulse text-gray-400">Thinking...</div>
+                <div style={{
+                  color: '#a1a1aa',
+                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                }}>Thinking...</div>
               )}
-            </div>
+            </Card>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {debugMode && (
-        <div className="mt-6 border-t border-gray-700 pt-6">
-          <h2 className="text-xl font-bold mb-4 text-white">Debug Panel</h2>
-          <div className="space-y-4">
+        <div style={{
+          marginTop: '24px',
+          paddingTop: '24px',
+          borderTop: '1px solid #27272a',
+        }}>
+          <h2 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            marginBottom: '16px',
+            color: 'white',
+          }}>Debug Panel</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {debugData.modelSelection && (
               <ModelSelector selection={debugData.modelSelection} />
             )}
@@ -211,14 +289,27 @@ export default function ConversationPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-3 pt-6 border-t border-gray-700 bg-gray-800">
-        <input
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: 'flex',
+          gap: '12px',
+          paddingTop: '24px',
+          borderTop: '1px solid #27272a',
+        }}
+      >
+        <Input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your message..."
-          className="flex-1 border border-gray-600 rounded-lg px-5 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-gray-100 placeholder-gray-400 shadow-sm text-base"
-          disabled={isLoading}
+          isDisabled={isLoading}
+          size="lg"
+          classNames={{
+            base: 'flex-1',
+            input: 'text-base',
+            inputWrapper: 'bg-[#27272a] border-[#3f3f46] hover:border-[#52525b]',
+          }}
         />
         <Button
           type="submit"
@@ -231,4 +322,3 @@ export default function ConversationPage() {
     </div>
   );
 }
-

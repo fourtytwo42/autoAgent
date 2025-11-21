@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import MainLayout from './components/layout/MainLayout';
+import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'AutoAgent - LLM Hive System',
@@ -14,8 +15,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="dark:bg-gray-900">
-        <MainLayout>{children}</MainLayout>
+      <body>
+        <Providers>
+          <MainLayout>{children}</MainLayout>
+        </Providers>
       </body>
     </html>
   );

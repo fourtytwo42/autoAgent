@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Card } from '@heroui/react';
 
 const navigation = [
   { name: 'Conversation', href: '/', icon: '💬' },
@@ -16,23 +17,56 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="w-64 bg-gray-800 text-white min-h-screen p-6 flex flex-col border-r border-gray-700">
-      <h1 className="text-2xl font-bold mb-8 text-white">AutoAgent</h1>
-      <nav className="space-y-2 flex-1">
+    <div style={{
+      width: '256px',
+      backgroundColor: '#18181b',
+      color: 'white',
+      minHeight: '100vh',
+      padding: '24px',
+      display: 'flex',
+      flexDirection: 'column',
+      borderRight: '1px solid #27272a',
+    }}>
+      <h1 style={{
+        fontSize: '24px',
+        fontWeight: 'bold',
+        marginBottom: '32px',
+        color: 'white',
+      }}>AutoAgent</h1>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
         {navigation.map((item) => {
           const isActive = pathname === item.href || (item.href === '/' && pathname === '/');
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                isActive 
-                  ? 'bg-gray-700 text-white shadow-md' 
-                  : 'hover:bg-gray-700 text-gray-300 hover:text-white'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                textDecoration: 'none',
+                color: isActive ? 'white' : '#a1a1aa',
+                backgroundColor: isActive ? '#27272a' : 'transparent',
+                transition: 'all 0.2s',
+                fontWeight: isActive ? '600' : '500',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = '#27272a';
+                  e.currentTarget.style.color = 'white';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = '#a1a1aa';
+                }
+              }}
             >
-              <span className="text-xl">{item.icon}</span>
-              <span className="font-medium">{item.name}</span>
+              <span style={{ fontSize: '20px' }}>{item.icon}</span>
+              <span>{item.name}</span>
             </Link>
           );
         })}
@@ -40,4 +74,3 @@ export default function Sidebar() {
     </div>
   );
 }
-

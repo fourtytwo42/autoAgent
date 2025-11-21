@@ -2,10 +2,13 @@ import Sidebar from './Sidebar';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-gray-900">
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      backgroundColor: '#0a0a0a',
+    }}>
       <Sidebar />
-      <main className="flex-1 bg-gray-900">{children}</main>
+      <main style={{ flex: 1, backgroundColor: '#0a0a0a' }}>{children}</main>
     </div>
   );
 }
-
