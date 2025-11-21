@@ -220,7 +220,7 @@ async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string):
       },
       {
         temperature: 0.7,
-        maxTokens: 2000,
+        maxTokens: 20000,
       }
     );
 

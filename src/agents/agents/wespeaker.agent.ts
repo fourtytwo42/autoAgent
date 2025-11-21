@@ -34,7 +34,7 @@ export class WeSpeakerAgent extends BaseAgent {
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.7,
-      maxTokens: context.options?.maxTokens || 1000,
+      maxTokens: context.options?.maxTokens || 20000,
     });
 
     const latency = Date.now() - startTime;
@@ -65,7 +65,7 @@ export class WeSpeakerAgent extends BaseAgent {
     // Execute streaming model call
     yield* this.executeModelCallStream(model, messages, {
       temperature: 0.7,
-      maxTokens: context.options?.maxTokens || 1000,
+      maxTokens: context.options?.maxTokens || 20000,
     });
   }
 

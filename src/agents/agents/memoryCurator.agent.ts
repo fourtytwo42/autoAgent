@@ -49,7 +49,7 @@ export class MemoryCuratorAgent extends BaseAgent {
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.3, // Lower temperature for analytical tasks
-      maxTokens: 2000,
+      maxTokens: 20000,
     });
 
     const latency = Date.now() - startTime;

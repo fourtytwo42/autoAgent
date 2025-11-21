@@ -40,7 +40,7 @@ export class GoalRefinerAgent extends BaseAgent {
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.6, // Balanced for creative expansion while staying focused
-      maxTokens: 500,
+      maxTokens: 20000,
     });
 
     const latency = Date.now() - startTime;

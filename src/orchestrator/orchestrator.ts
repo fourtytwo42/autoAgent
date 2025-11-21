@@ -95,7 +95,7 @@ export class Orchestrator {
         },
         options: {
           temperature: 0.6,
-          maxTokens: 500,
+          maxTokens: 20000,
         },
       });
 
@@ -126,7 +126,7 @@ export class Orchestrator {
         },
         options: {
           temperature: 0.6,
-          maxTokens: 500,
+          maxTokens: 20000,
         },
       });
 
@@ -216,7 +216,7 @@ export class Orchestrator {
       },
       options: {
         temperature: 0.7,
-        maxTokens: 1500,
+        maxTokens: 20000,
       },
     });
 
@@ -316,7 +316,7 @@ export class Orchestrator {
       },
       options: {
         temperature: 0.7,
-        maxTokens: 1000,
+        maxTokens: 20000,
       },
     });
   }
@@ -432,7 +432,7 @@ export class Orchestrator {
       },
       {
         temperature: 0.7,
-        maxTokens: 2000,
+        maxTokens: 20000,
       }
     );
   }

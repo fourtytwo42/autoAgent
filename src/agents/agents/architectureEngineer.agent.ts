@@ -65,7 +65,7 @@ export class ArchitectureEngineerAgent extends BaseAgent {
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.4, // Lower temperature for analytical tasks
-      maxTokens: 3000,
+      maxTokens: 20000,
     });
 
     const latency = Date.now() - startTime;

@@ -48,7 +48,7 @@ export class StewardAgent extends BaseAgent {
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.4, // Balanced for strategic thinking
-      maxTokens: 2000,
+      maxTokens: 20000,
     });
 
     // Update goal priorities based on output (simplified - would parse structured output)

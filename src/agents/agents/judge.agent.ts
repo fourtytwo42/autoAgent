@@ -43,7 +43,7 @@ export class JudgeAgent extends BaseAgent {
     // Execute model call
     const output = await this.executeModelCall(model, messages, {
       temperature: 0.3, // Lower temperature for consistent evaluation
-      maxTokens: 1000,
+      maxTokens: 20000,
     });
 
     // Parse score from output (simplified - in production would use structured output)

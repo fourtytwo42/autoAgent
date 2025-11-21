@@ -31,7 +31,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
 
     const body = {
       model: model.name,
-      max_tokens: options?.maxTokens || 1024,
+      max_tokens: options?.maxTokens || 20000,
       temperature: options?.temperature ?? 0.7,
       system: systemMessage?.content || '',
       messages: conversationMessages.map((msg) => ({
@@ -78,7 +78,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
 
     const body = {
       model: model.name,
-      max_tokens: options?.maxTokens || 1024,
+      max_tokens: options?.maxTokens || 20000,
       temperature: options?.temperature ?? 0.7,
       system: systemMessage?.content || '',
       messages: conversationMessages.map((msg) => ({
@@ -185,7 +185,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
 
     const body = {
       model: model.name,
-      max_tokens: options?.maxTokens || 1024,
+      max_tokens: options?.maxTokens || 20000,
       temperature: options?.temperature ?? 0.7,
       system: systemMessage?.content || '',
       messages: formattedMessages,
