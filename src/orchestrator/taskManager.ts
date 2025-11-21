@@ -94,6 +94,12 @@ export class TaskManager {
     if (!task || task.type !== 'task') {
       return false;
     }
+    
+    // Don't assign agents to already completed tasks
+    if (task.dimensions?.status === 'completed') {
+      console.log(`[TaskManager] Task ${taskId} is already completed, skipping assignment`);
+      return false;
+    }
 
     // Get how many agents should work on this task
     const agentCount = task.dimensions?.agent_count || task.metadata?.agent_count || 1;
@@ -182,12 +188,16 @@ export class TaskManager {
     console.log(`[TaskManager] Updating task ${taskId} with assigned agents: ${assignedAgentIds.join(', ')}`);
     console.log(`[TaskManager] Current task dimensions before update: ${JSON.stringify(freshTask.dimensions)}`);
     
+    // Don't overwrite completed status - only set to assigned if not already completed
+    const currentStatus = freshTask.dimensions?.status;
+    const newStatus = currentStatus === 'completed' ? 'completed' : 'assigned';
+    
     const updated = await blackboardService.update(taskId, {
       dimensions: {
         ...(freshTask.dimensions || {}),
         assigned_agents: assignedAgentIds,
         assigned_agent: assignedAgentIds[0], // Keep first for backward compatibility
-        status: 'assigned',
+        status: newStatus,
         agent_count: agentsToAssign.length,
       },
     });

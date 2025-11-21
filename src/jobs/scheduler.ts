@@ -48,8 +48,12 @@ export class JobScheduler {
     try {
       const pendingTasks = await taskManager.getPendingTasks();
       
-      // Process up to 5 pending tasks per cycle
+      // Process up to 5 pending tasks per cycle (only if they're not completed)
       for (const task of pendingTasks.slice(0, 5)) {
+        // Skip if task is already completed
+        if (task.dimensions?.status === 'completed') {
+          continue;
+        }
         // Try to assign an agent to the task
         await taskManager.assignAgentToTask(task.id);
       }
