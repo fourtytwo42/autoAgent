@@ -182,6 +182,58 @@ export default function BlackboardViewPage() {
     }
   };
 
+  // Handle navigation for dependency task numbers
+  const handleDependencyTaskClick = async (taskNumber: number, goalId?: string) => {
+    try {
+      // Search for task with this task_number and goal_id
+      const queryParams = new URLSearchParams();
+      queryParams.set('type', 'task');
+      if (goalId) {
+        queryParams.set('parent_id', goalId);
+      }
+      
+      const response = await fetch(`/api/blackboard?${queryParams.toString()}&limit=1000`);
+      const data = await response.json();
+      
+      // Find task with matching task_number
+      const matchingTask = data.items?.find((item: BlackboardItem) => 
+        item.dimensions?.task_number === taskNumber
+      );
+      
+      if (matchingTask) {
+        handleItemClick(matchingTask.id);
+      } else {
+        // If not found, show a message or search more broadly
+        console.warn(`Task ${taskNumber} not found for goal ${goalId}`);
+      }
+    } catch (error) {
+      console.error('Error finding dependency task:', error);
+    }
+  };
+
+  // Handle source click - could be an ID or reference
+  const handleSourceClick = async (source: any) => {
+    if (typeof source === 'string' && isUUID(source)) {
+      // If source is a UUID, treat it as a blackboard item ID
+      handleItemClick(source);
+    } else if (typeof source === 'string') {
+      // If source is a string (like 'taskplanner'), search for items with that source
+      try {
+        const response = await fetch(`/api/blackboard?limit=1000`);
+        const data = await response.json();
+        const matchingItems = data.items?.filter((item: BlackboardItem) => 
+          item.dimensions?.source === source
+        );
+        if (matchingItems && matchingItems.length > 0) {
+          // Show first matching item or could show a list
+          handleItemClick(matchingItems[0].id);
+        }
+      } catch (error) {
+        console.error('Error searching for source:', error);
+      }
+    }
+  };
+
   // Render a dimension value, making IDs clickable
   const renderDimensionValue = (key: string, value: any): React.ReactNode => {
     const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
@@ -228,6 +280,42 @@ export default function BlackboardViewPage() {
         >
           {valueStr}
         </button>
+      );
+    }
+    
+    // Handle source - could be an ID or reference
+    if (key === 'source') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSourceClick(value);
+          }}
+          className="text-primary hover:underline font-medium cursor-pointer"
+        >
+          {valueStr}
+        </button>
+      );
+    }
+    
+    // Handle dependency_task_numbers - array of task numbers
+    if (key === 'dependency_task_numbers' && Array.isArray(value)) {
+      const goalId = selectedItem?.links?.parents?.[0]; // Get goal ID from parent
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.map((taskNum: number, idx: number) => (
+            <button
+              key={idx}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDependencyTaskClick(taskNum, goalId);
+              }}
+              className="text-primary hover:underline font-medium cursor-pointer text-xs bg-primary/10 px-2 py-1 rounded"
+            >
+              Task {taskNum}
+            </button>
+          ))}
+        </div>
       );
     }
     
@@ -389,26 +477,134 @@ export default function BlackboardViewPage() {
                 <h3 className="text-lg font-semibold mb-3">Details</h3>
                 <div className="prose prose-invert dark:prose-invert max-w-none bg-muted p-4 rounded-md">
                   {selectedItem.detail.content ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeRaw]}
-                      components={{
-                        p: ({ children }: any) => <p className="my-2 text-foreground">{children}</p>,
-                        code: ({ inline, children }: any) => (
-                          <code className={inline ? 'bg-muted px-1.5 py-0.5 rounded text-sm' : 'block bg-muted p-4 rounded-md overflow-x-auto text-sm'}>
-                            {children}
-                          </code>
-                        ),
-                        a: ({ href, children }: any) => (
-                          <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                            {children}
-                          </a>
-                        ),
-                        br: () => <br />,
-                      }}
-                    >
-                      {String(selectedItem.detail.content)}
-                    </ReactMarkdown>
+                    (() => {
+                      // Check if this is a TaskPlanner output (JSON with tasks array)
+                      const content = String(selectedItem.detail.content);
+                      let parsedTasks: any[] | null = null;
+                      
+                      try {
+                        // Try to parse as JSON
+                        const jsonMatch = content.match(/\{[\s\S]*"tasks"[\s\S]*\}/);
+                        if (jsonMatch) {
+                          const parsed = JSON.parse(jsonMatch[0]);
+                          if (parsed.tasks && Array.isArray(parsed.tasks)) {
+                            parsedTasks = parsed.tasks;
+                          }
+                        }
+                      } catch (e) {
+                        // Not JSON or parse failed, continue with markdown
+                      }
+                      
+                      // If we found structured tasks, render them specially
+                      if (parsedTasks && parsedTasks.length > 0 && selectedItem.dimensions?.agent_id === 'TaskPlanner') {
+                        const goalId = selectedItem.links?.parents?.[0];
+                        return (
+                          <div className="space-y-4">
+                            <div className="text-sm text-muted-foreground mb-4">
+                              TaskPlanner created {parsedTasks.length} task{parsedTasks.length !== 1 ? 's' : ''}:
+                            </div>
+                            <div className="space-y-3">
+                              {parsedTasks.map((task: any, idx: number) => {
+                                const taskNumber = task.number || idx + 1;
+                                return (
+                                  <Card
+                                    key={idx}
+                                    className="cursor-pointer hover:bg-muted/50 transition-colors border-border"
+                                    onClick={async () => {
+                                      await handleDependencyTaskClick(taskNumber, goalId);
+                                    }}
+                                  >
+                                    <CardContent className="p-4">
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Badge className="bg-green-500/20 text-green-600 border-green-500/50">
+                                              Task {taskNumber}
+                                            </Badge>
+                                            {task.priority && (
+                                              <Badge variant="outline" className="text-xs">
+                                                {task.priority}
+                                              </Badge>
+                                            )}
+                                            {task.task_type && (
+                                              <Badge variant="outline" className="text-xs">
+                                                {task.task_type}
+                                              </Badge>
+                                            )}
+                                            {task.agent_count && (
+                                              <Badge variant="outline" className="text-xs">
+                                                {task.agent_count} agent{task.agent_count !== 1 ? 's' : ''}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <p className="text-sm font-medium text-foreground mb-2">
+                                            {task.summary || 'No summary'}
+                                          </p>
+                                          {task.dependencies && Array.isArray(task.dependencies) && task.dependencies.length > 0 && (
+                                            <div className="flex items-center gap-2 mt-2">
+                                              <span className="text-xs text-muted-foreground">Depends on:</span>
+                                              <div className="flex flex-wrap gap-1">
+                                                {task.dependencies.map((depNum: number, depIdx: number) => (
+                                                  <button
+                                                    key={depIdx}
+                                                    onClick={async (e) => {
+                                                      e.stopPropagation();
+                                                      await handleDependencyTaskClick(depNum, goalId);
+                                                    }}
+                                                    className="text-xs text-primary hover:underline font-medium cursor-pointer bg-primary/10 px-2 py-0.5 rounded"
+                                                  >
+                                                    Task {depNum}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-border">
+                              <details className="text-sm">
+                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                  View raw JSON output
+                                </summary>
+                                <pre className="mt-2 text-xs text-foreground whitespace-pre-wrap bg-background p-3 rounded overflow-x-auto">
+                                  {JSON.stringify(parsedTasks, null, 2)}
+                                </pre>
+                              </details>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Default: render as markdown
+                      return (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeRaw]}
+                          components={{
+                            p: ({ children }: any) => <p className="my-2 text-foreground">{children}</p>,
+                            code: ({ inline, children }: any) => (
+                              <code className={inline ? 'bg-muted px-1.5 py-0.5 rounded text-sm' : 'block bg-muted p-4 rounded-md overflow-x-auto text-sm'}>
+                                {children}
+                              </code>
+                            ),
+                            a: ({ href, children }: any) => (
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                {children}
+                              </a>
+                            ),
+                            br: () => <br />,
+                          }}
+                        >
+                          {content}
+                        </ReactMarkdown>
+                      );
+                    })()
                   ) : (
                     <pre className="text-sm text-foreground whitespace-pre-wrap">
                       {JSON.stringify(selectedItem.detail, null, 2)}
@@ -583,7 +779,9 @@ export default function BlackboardViewPage() {
                           const isClickableId = isIdKey(key) && typeof value === 'string' && isUUID(value);
                           const isClickableAgent = key === 'agent_id' && typeof value === 'string';
                           const isClickableModel = (key === 'model_name' || key === 'model_provider' || key === 'provider') && typeof value === 'string';
-                          const isClickable = isClickableId || isClickableAgent || isClickableModel;
+                          const isClickableSource = key === 'source';
+                          const isClickableDeps = key === 'dependency_task_numbers' && Array.isArray(value);
+                          const isClickable = isClickableId || isClickableAgent || isClickableModel || isClickableSource || isClickableDeps;
                           
                           const handleClick = (e: React.MouseEvent) => {
                             e.stopPropagation();
@@ -595,10 +793,45 @@ export default function BlackboardViewPage() {
                               } else {
                                 handleModelClick(undefined, value as string, undefined);
                               }
+                            } else if (isClickableSource) {
+                              handleSourceClick(value);
+                            } else if (isClickableDeps) {
+                              // For dependency_task_numbers, clicking will show the first dependency
+                              const deps = value as number[];
+                              if (deps.length > 0) {
+                                const goalId = item.links?.parents?.[0];
+                                handleDependencyTaskClick(deps[0], goalId);
+                              }
                             } else if (isClickableId) {
                               handleItemClick(value as string);
                             }
                           };
+                          
+                          // Special rendering for dependency_task_numbers
+                          if (isClickableDeps) {
+                            const deps = value as number[];
+                            const goalId = item.links?.parents?.[0];
+                            return (
+                              <Badge 
+                                key={key} 
+                                variant="outline" 
+                                className="text-xs cursor-pointer hover:bg-primary/10"
+                              >
+                                {key}: {deps.map((depNum, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await handleDependencyTaskClick(depNum, goalId);
+                                    }}
+                                    className="text-primary hover:underline font-medium cursor-pointer ml-1"
+                                  >
+                                    {depNum}{idx < deps.length - 1 ? ',' : ''}
+                                  </button>
+                                ))}
+                              </Badge>
+                            );
+                          }
                           
                           return (
                             <Badge 
