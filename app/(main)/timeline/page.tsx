@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useEvents } from '../../hooks/useEvents';
 
 interface Event {
   id: string;
@@ -13,29 +14,16 @@ interface Event {
 }
 
 export default function TimelinePage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ type: '', agent: '' });
+  const { events, isConnected } = useEvents(100);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchEvents();
-  }, [filter]);
-
-  const fetchEvents = async () => {
-    setLoading(true);
-    try {
-      // Note: This endpoint would need to be created
-      const response = await fetch('/api/events');
-      const data = await response.json();
-      setEvents(data.events || []);
-    } catch (error) {
-      console.error('Error fetching events:', error);
-      // For now, show empty state
-      setEvents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Filter events client-side
+  const filteredEvents = events.filter((event) => {
+    if (filter.type && event.type !== filter.type) return false;
+    if (filter.agent && event.agent_id !== filter.agent) return false;
+    return true;
+  });
 
   return (
     <div className="p-4">
@@ -53,13 +41,16 @@ export default function TimelinePage() {
           <option value="judgement">Judgement</option>
         </select>
       </div>
+      <div className="mb-4 text-sm text-gray-500">
+        {isConnected ? '🟢 Live updates' : '🔴 Disconnected'} | {filteredEvents.length} events
+      </div>
       {loading ? (
         <div>Loading...</div>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <div className="text-gray-500">No events found</div>
       ) : (
         <div className="space-y-2">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <div key={event.id} className="border rounded p-4 hover:bg-gray-50">
               <div className="flex justify-between items-start">
                 <div>

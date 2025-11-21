@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useSSE } from '../hooks/useSSE';
+import AgentTrace from '../components/debug/AgentTrace';
+import ModelSelector from '../components/debug/ModelSelector';
+import GoalTree from '../components/debug/GoalTree';
 
 interface Message {
   id: string;
@@ -14,6 +18,11 @@ export default function ConversationPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
+  const [debugData, setDebugData] = useState<{
+    traces?: any[];
+    modelSelection?: any;
+    goalTree?: any;
+  }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -23,6 +32,47 @@ export default function ConversationPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const [streamingMessage, setStreamingMessage] = useState<string>('');
+
+  // Handle streaming responses
+  const handleStreaming = useSSE(
+    debugMode ? '/api/stream' : null,
+    {
+      onMessage: (data) => {
+        if (data.type === 'token') {
+          setStreamingMessage((prev) => prev + data.content);
+        } else if (data.type === 'done') {
+          if (streamingMessage) {
+            const assistantMessage: Message = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: streamingMessage,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, assistantMessage]);
+            setStreamingMessage('');
+          }
+          setIsLoading(false);
+        } else if (data.type === 'error') {
+          const errorMessage: Message = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: `Error: ${data.error}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errorMessage]);
+          setStreamingMessage('');
+          setIsLoading(false);
+        }
+      },
+      onError: (error) => {
+        console.error('Streaming error:', error);
+        setIsLoading(false);
+        setStreamingMessage('');
+      },
+    }
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,26 +86,40 @@ export default function ConversationPage() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const messageText = input;
     setInput('');
     setIsLoading(true);
+    setStreamingMessage('');
 
     try {
-      const response = await fetch('/api/conversation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input }),
-      });
+      if (debugMode) {
+        // Use streaming
+        const response = await fetch('/api/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: messageText }),
+        });
+        // SSE will handle the response
+      } else {
+        // Use regular API
+        const response = await fetch('/api/conversation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: messageText }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.response,
-        timestamp: new Date(),
-      };
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date(),
+        };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev) => [...prev, assistantMessage]);
+        setIsLoading(false);
+      }
     } catch (error) {
       console.error('Error:', error);
       const errorMessage: Message = {
@@ -65,8 +129,8 @@ export default function ConversationPage() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-    } finally {
       setIsLoading(false);
+      setStreamingMessage('');
     }
   };
 
@@ -112,15 +176,36 @@ export default function ConversationPage() {
             </div>
           </div>
         ))}
-        {isLoading && (
+        {(isLoading || streamingMessage) && (
           <div className="flex justify-start">
             <div className="bg-gray-200 rounded-lg p-4">
-              <div className="animate-pulse">Thinking...</div>
+              {streamingMessage ? (
+                <div className="whitespace-pre-wrap">{streamingMessage}</div>
+              ) : (
+                <div className="animate-pulse">Thinking...</div>
+              )}
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {debugMode && (
+        <div className="mt-4 border-t pt-4">
+          <h2 className="font-bold mb-4">Debug Panel</h2>
+          <div className="space-y-4">
+            {debugData.modelSelection && (
+              <ModelSelector selection={debugData.modelSelection} />
+            )}
+            {debugData.traces && debugData.traces.length > 0 && (
+              <AgentTrace traces={debugData.traces} />
+            )}
+            {debugData.goalTree && (
+              <GoalTree root={debugData.goalTree} />
+            )}
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="flex space-x-2">
         <input

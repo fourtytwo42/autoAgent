@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server';
+import { healthChecker } from '@/src/health/checker';
 
 export const dynamic = 'force-dynamic';
-import { testConnection } from '@/src/config/database';
 
 export async function GET() {
   try {
-    const dbConnected = await testConnection();
+    const health = await healthChecker.checkHealth();
 
-    return NextResponse.json({
-      status: 'ok',
-      database: dbConnected ? 'connected' : 'disconnected',
-      timestamp: new Date().toISOString(),
-    });
+    const statusCode = health.status === 'healthy' ? 200 : 
+                      health.status === 'degraded' ? 200 : 503;
+
+    return NextResponse.json(health, { status: statusCode });
   } catch (error) {
     return NextResponse.json(
       {
-        status: 'error',
+        status: 'unhealthy',
         error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      { status: 503 }
     );
   }
 }

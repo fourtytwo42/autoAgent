@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useBlackboardUpdates } from '../../hooks/useBlackboardUpdates';
 
 interface BlackboardItem {
   id: string;
@@ -13,13 +14,15 @@ interface BlackboardItem {
 }
 
 export default function BlackboardPage() {
-  const [items, setItems] = useState<BlackboardItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<BlackboardItem | null>(null);
   const [filters, setFilters] = useState({
     type: '',
     search: '',
   });
   const [loading, setLoading] = useState(true);
+
+  // Use real-time updates hook
+  const { items, isConnected, refresh } = useBlackboardUpdates([]);
 
   useEffect(() => {
     fetchItems();
@@ -34,13 +37,23 @@ export default function BlackboardPage() {
 
       const response = await fetch(`/api/blackboard?${params.toString()}`);
       const data = await response.json();
-      setItems(data.items || []);
+      // Items will be updated by the hook
+      refresh();
     } catch (error) {
       console.error('Error fetching items:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Filter items client-side
+  const filteredItems = items.filter((item) => {
+    if (filters.type && item.type !== filters.type) return false;
+    if (filters.search && !item.summary.toLowerCase().includes(filters.search.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="flex h-screen max-h-[calc(100vh-4rem)]">
@@ -79,13 +92,16 @@ export default function BlackboardPage() {
       {/* Item List */}
       <div className="flex-1 overflow-y-auto p-4">
         <h1 className="text-2xl font-bold mb-4">Blackboard Explorer</h1>
+        <div className="mb-2 text-sm text-gray-500">
+          {isConnected ? '🟢 Live updates' : '🔴 Disconnected'} | {filteredItems.length} items
+        </div>
         {loading ? (
           <div>Loading...</div>
-        ) : items.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="text-gray-500">No items found</div>
         ) : (
           <div className="space-y-2">
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <div
                 key={item.id}
                 onClick={() => setSelectedItem(item)}

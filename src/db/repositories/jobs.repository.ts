@@ -69,10 +69,10 @@ export class JobsRepository {
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  async findByStatus(status: JobStatus): Promise<JobRow[]> {
+  async findByStatus(status: JobStatus, limit: number = 100): Promise<JobRow[]> {
     const result = await this.poolInstance.query<JobRow>(
-      'SELECT * FROM jobs WHERE status = $1 ORDER BY created_at DESC',
-      [status]
+      'SELECT * FROM jobs WHERE status = $1 ORDER BY created_at DESC LIMIT $2',
+      [status, limit]
     );
 
     return result.rows.map((row) => this.mapRow(row));

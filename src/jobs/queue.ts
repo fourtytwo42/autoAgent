@@ -63,6 +63,40 @@ export class JobQueue {
     await jobsRepository.unlock(jobId);
   }
 
+  async getRunningJobs(limit: number = 100): Promise<Job[]> {
+    const rows = await jobsRepository.findByStatus('running', limit);
+    return rows.map((row) => this.mapRowToJob(row));
+  }
+
+  async getFailedJobs(limit: number = 100): Promise<Job[]> {
+    const rows = await jobsRepository.findByStatus('failed', limit);
+    return rows.map((row) => this.mapRowToJob(row));
+  }
+
+  async getById(id: string): Promise<Job | null> {
+    return this.getJobById(id);
+  }
+
+  async updateStatus(jobId: string, status: JobStatus): Promise<Job | null> {
+    if (status === 'completed') {
+      return this.completeJob(jobId);
+    } else if (status === 'failed') {
+      return this.failJob(jobId, true);
+    }
+    // For other statuses, would need repository method
+    return this.getJobById(jobId);
+  }
+
+  async dequeue(): Promise<Job | null> {
+    const pending = await this.getPendingJobs(1);
+    if (pending.length === 0) {
+      return null;
+    }
+    const job = pending[0];
+    const locked = await this.lockJob(job.id, 'scheduler');
+    return locked;
+  }
+
   private mapRowToJob(row: any): Job {
     return {
       id: row.id,
