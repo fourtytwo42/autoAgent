@@ -172,10 +172,19 @@ export class TaskManager {
     }
 
     // Update task with assigned agents
+    // Read fresh task to ensure we have current dimensions
+    const freshTask = await blackboardService.findById(taskId);
+    if (!freshTask) {
+      console.error(`[TaskManager] Task ${taskId} not found when trying to update`);
+      return false;
+    }
+    
     console.log(`[TaskManager] Updating task ${taskId} with assigned agents: ${assignedAgentIds.join(', ')}`);
+    console.log(`[TaskManager] Current task dimensions before update: ${JSON.stringify(freshTask.dimensions)}`);
+    
     const updated = await blackboardService.update(taskId, {
       dimensions: {
-        ...task.dimensions,
+        ...(freshTask.dimensions || {}),
         assigned_agents: assignedAgentIds,
         assigned_agent: assignedAgentIds[0], // Keep first for backward compatibility
         status: 'assigned',
@@ -185,6 +194,13 @@ export class TaskManager {
     
     if (updated) {
       console.log(`[TaskManager] Successfully updated task ${taskId} with status: assigned, agents: ${assignedAgentIds.join(', ')}`);
+      console.log(`[TaskManager] Updated task dimensions: ${JSON.stringify(updated.dimensions)}`);
+      
+      // Verify the update persisted
+      const verifyTask = await blackboardService.findById(taskId);
+      if (verifyTask) {
+        console.log(`[TaskManager] Verification - task ${taskId} dimensions after update: ${JSON.stringify(verifyTask.dimensions)}`);
+      }
     } else {
       console.error(`[TaskManager] Failed to update task ${taskId}`);
     }

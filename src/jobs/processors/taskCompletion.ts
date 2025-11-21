@@ -17,13 +17,42 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
   }
 
   // Get all agents assigned to this task
-  const assignedAgents = task.dimensions?.assigned_agents || 
+  let assignedAgents = task.dimensions?.assigned_agents || 
     (task.dimensions?.assigned_agent ? [task.dimensions.assigned_agent] : []);
   
   console.log(`[checkTaskCompletion] Task ${taskId}: assigned_agents=${JSON.stringify(assignedAgents)}, assigned_agent=${task.dimensions?.assigned_agent}`);
   
+  // If no assigned agents in task dimensions, try to infer from outputs
   if (assignedAgents.length === 0) {
-    console.log(`[checkTaskCompletion] Task ${taskId} has no assigned agents, cannot check completion`);
+    const allOutputs = await blackboardService.query({
+      type: 'agent_output',
+      links: { parents: [taskId] },
+    });
+    
+    if (allOutputs.length > 0) {
+      // Infer assigned agents from outputs
+      const inferredAgents = Array.from(new Set(
+        allOutputs.map(o => o.dimensions?.agent_id).filter(Boolean)
+      ));
+      
+      if (inferredAgents.length > 0) {
+        console.log(`[checkTaskCompletion] Task ${taskId} has no assigned_agents in dimensions, but found outputs from: ${inferredAgents.join(', ')}. Using inferred agents.`);
+        assignedAgents = inferredAgents;
+        
+        // Update task with inferred agents for future reference
+        await blackboardService.update(taskId, {
+          dimensions: {
+            ...task.dimensions,
+            assigned_agents: inferredAgents,
+            assigned_agent: inferredAgents[0],
+          },
+        });
+      }
+    }
+  }
+  
+  if (assignedAgents.length === 0) {
+    console.log(`[checkTaskCompletion] Task ${taskId} has no assigned agents and no outputs, cannot check completion`);
     return false;
   }
 
