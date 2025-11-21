@@ -207,6 +207,19 @@ export class RunAgentProcessor extends BaseJobProcessor {
         await cleanupCompletedTasks(payload.context.goal_id);
       }, 2000);
     }
+    
+    // If WeSpeaker answered a user query request, mark it as answered
+    if (payload.agent_id === 'WeSpeaker' && payload.context?.user_query_request_id) {
+      try {
+        const { markUserQueryAnswered } = await import('@/src/blackboard/userQueryHandler');
+        // Extract the answer from WeSpeaker's output
+        const answer = output.output || '';
+        await markUserQueryAnswered(payload.context.user_query_request_id, answer);
+        console.log(`[RunAgentProcessor] Marked user query ${payload.context.user_query_request_id} as answered`);
+      } catch (error) {
+        console.error(`[RunAgentProcessor] Error marking user query as answered:`, error);
+      }
+    }
   }
 
   private async handleTaskPlannerOutput(output: any, goalId: string): Promise<void> {
