@@ -37,6 +37,13 @@ export default function BlackboardViewPage() {
   useEffect(() => {
     fetchAllItems();
     fetchAgentNames();
+    
+    // Poll for updates every 3 seconds
+    const interval = setInterval(() => {
+      fetchAllItems();
+    }, 3000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchAgentNames = async () => {
@@ -810,8 +817,10 @@ export default function BlackboardViewPage() {
       userRequest: BlackboardItem;
       goals: Array<{
         goal: BlackboardItem;
-        tasks: BlackboardItem[];
-        outputs: BlackboardItem[];
+        tasksWithOutputs: Array<{
+          task: BlackboardItem;
+          outputs: BlackboardItem[];
+        }>;
         wespeakerOutputs: BlackboardItem[];
       }>;
     }> = [];
@@ -838,31 +847,34 @@ export default function BlackboardViewPage() {
           return aNum - bNum;
         });
 
-        // Find agent outputs for these tasks
-        const allTaskIds = tasks.map(t => t.id);
-        const outputs = items.filter(item =>
-          item.type === 'agent_output' &&
-          item.links?.parents &&
-          item.links.parents.some(parentId => allTaskIds.includes(parentId)) &&
-          item.dimensions?.agent_id !== 'WeSpeaker'
-        ).sort((a, b) => {
-          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return aTime - bTime;
+        // For each task, find its outputs (grouped under task)
+        const tasksWithOutputs = tasks.map(task => {
+          const taskOutputs = items.filter(item =>
+            item.type === 'agent_output' &&
+            item.links?.parents?.includes(task.id) &&
+            item.dimensions?.agent_id !== 'WeSpeaker'
+          ).sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return aTime - bTime;
+          });
+          return { task, outputs: taskOutputs };
         });
 
-        // Find WeSpeaker outputs for this goal
+        // Find WeSpeaker outputs for this goal (exclude initial "working on it" messages)
+        // Only include WeSpeaker outputs that are final responses (have goal_id but no task_id)
         const wespeakerOutputs = items.filter(item =>
           item.type === 'agent_output' &&
           item.dimensions?.agent_id === 'WeSpeaker' &&
-          (item.links?.parents?.includes(goal.id) || item.dimensions?.goal_id === goal.id)
+          (item.links?.parents?.includes(goal.id) || item.dimensions?.goal_id === goal.id) &&
+          !item.dimensions?.task_id // Exclude task-specific WeSpeaker outputs
         ).sort((a, b) => {
           const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
           const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
           return aTime - bTime;
         });
 
-        return { goal, tasks, outputs, wespeakerOutputs };
+        return { goal, tasksWithOutputs, wespeakerOutputs };
       });
 
       flowGroups.push({ userRequest, goals: goalGroups });
@@ -877,19 +889,21 @@ export default function BlackboardViewPage() {
       const tasks = items.filter(item =>
         item.type === 'task' && taskIds.includes(item.id)
       );
-      const allTaskIds = tasks.map(t => t.id);
-      const outputs = items.filter(item =>
-        item.type === 'agent_output' &&
-        item.links?.parents &&
-        item.links.parents.some(parentId => allTaskIds.includes(parentId)) &&
-        item.dimensions?.agent_id !== 'WeSpeaker'
-      );
+      const tasksWithOutputs = tasks.map(task => {
+        const taskOutputs = items.filter(item =>
+          item.type === 'agent_output' &&
+          item.links?.parents?.includes(task.id) &&
+          item.dimensions?.agent_id !== 'WeSpeaker'
+        );
+        return { task, outputs: taskOutputs };
+      });
       const wespeakerOutputs = items.filter(item =>
         item.type === 'agent_output' &&
         item.dimensions?.agent_id === 'WeSpeaker' &&
-        (item.links?.parents?.includes(goal.id) || item.dimensions?.goal_id === goal.id)
+        (item.links?.parents?.includes(goal.id) || item.dimensions?.goal_id === goal.id) &&
+        !item.dimensions?.task_id
       );
-      return { goal, tasks, outputs, wespeakerOutputs };
+      return { goal, tasksWithOutputs, wespeakerOutputs };
     });
 
     if (orphanedGoals.length > 0) {
@@ -948,17 +962,17 @@ export default function BlackboardViewPage() {
                         </Badge>
                       )}
                     </div>
-                    <CardTitle className="mt-2 cursor-pointer hover:text-primary" onClick={() => handleItemClick(goalGroup.goal.id)}>
+                    <p className="mt-2 text-sm font-medium text-foreground cursor-pointer hover:text-primary" onClick={() => handleItemClick(goalGroup.goal.id)}>
                       {goalGroup.goal.summary}
-                    </CardTitle>
+                    </p>
                   </CardHeader>
                 </Card>
 
-                {/* Tasks */}
-                {goalGroup.tasks.length > 0 && (
-                  <div className="ml-4 space-y-2 border-l-2 border-l-green-500/30 pl-4">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-2">Tasks ({goalGroup.tasks.length})</h4>
-                    {goalGroup.tasks.map((task) => (
+                {/* Tasks with their outputs */}
+                {goalGroup.tasksWithOutputs.length > 0 && (
+                  <div className="ml-4 space-y-3 border-l-2 border-l-green-500/30 pl-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-2">Tasks ({goalGroup.tasksWithOutputs.length})</h4>
+                    {goalGroup.tasksWithOutputs.map(({ task, outputs }) => (
                       <Card
                         key={task.id}
                         className="border-l-4 border-l-green-500 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -1013,49 +1027,7 @@ export default function BlackboardViewPage() {
                   </div>
                 )}
 
-                {/* Agent Outputs */}
-                {goalGroup.outputs.length > 0 && (
-                  <div className="ml-4 space-y-2 border-l-2 border-l-yellow-500/30 pl-4">
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-2">Agent Outputs ({goalGroup.outputs.length})</h4>
-                    {goalGroup.outputs.map((output) => (
-                      <Card
-                        key={output.id}
-                        className="border-l-4 border-l-yellow-500 cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => handleItemClick(output.id)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge className={getTypeColor('agent_output')} variant="outline">Output</Badge>
-                                {output.dimensions?.agent_id && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs cursor-pointer hover:bg-primary/10"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAgentClick(output.dimensions.agent_id);
-                                    }}
-                                  >
-                                    {output.dimensions.agent_id}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm font-medium text-foreground">{output.summary}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(output.created_at)}
-                              </div>
-                            </div>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {/* WeSpeaker Responses */}
+                {/* WeSpeaker Final Response (at bottom) */}
                 {goalGroup.wespeakerOutputs.length > 0 && (
                   <div className="ml-4 space-y-2 border-l-2 border-l-cyan-500/30 pl-4">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-2">WeSpeaker Response{goalGroup.wespeakerOutputs.length !== 1 ? 's' : ''} ({goalGroup.wespeakerOutputs.length})</h4>
