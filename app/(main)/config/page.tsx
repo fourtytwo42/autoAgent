@@ -198,13 +198,26 @@ export default function ConfigPage() {
     return (
       <div style={{ padding: '24px' }}>
         <div style={{ marginBottom: '24px' }}>
-          <Button
-            variant="ghost"
+          <button
             onClick={() => setSelectedProvider(null)}
-            style={{ marginBottom: '16px', color: '#60a5fa' }}
+            style={{
+              marginBottom: '16px',
+              color: '#60a5fa',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              padding: '8px 0',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#93c5fd';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#60a5fa';
+            }}
           >
             ← Back to Providers
-          </Button>
+          </button>
           <h1 style={{
             fontSize: '30px',
             fontWeight: 'bold',
@@ -300,7 +313,7 @@ export default function ConfigPage() {
                           <Button
                             size="sm"
                             onClick={() => handleAddModel(model)}
-                            isDisabled={!provider?.configured}
+                            disabled={!provider?.configured}
                           >
                             Add
                           </Button>
@@ -368,7 +381,7 @@ export default function ConfigPage() {
                       <Button
                         size="sm"
                         color={model.is_enabled ? 'success' : 'default'}
-                        variant={model.is_enabled ? 'solid' : 'bordered'}
+                        variant={model.is_enabled ? 'primary' : 'secondary'}
                         onClick={() => toggleModelEnabled(model.id, model.is_enabled)}
                       >
                         {model.is_enabled ? 'Enabled' : 'Disabled'}

@@ -10,6 +10,7 @@ interface ButtonProps {
   color?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
+  isDisabled?: boolean;
   onClick?: () => void;
   className?: string;
 }
@@ -32,7 +33,7 @@ export default function Button({
     size: size,
     variant: variant === 'ghost' ? 'light' : variant === 'secondary' ? 'bordered' : 'solid',
     type,
-    isDisabled: disabled,
+    isDisabled: disabled || isDisabled,
     onPress: onClick,
     className,
     ...props,
