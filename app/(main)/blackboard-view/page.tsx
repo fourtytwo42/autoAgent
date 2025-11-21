@@ -950,15 +950,16 @@ export default function BlackboardViewPage() {
   const flowGroups = organizeByFlow();
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
+    <div className="h-full flex flex-col">
+      <div className="p-6 pb-4 flex-shrink-0">
         <h1 className="text-3xl font-bold text-foreground mb-2">Blackboard</h1>
         <p className="text-muted-foreground">
           The shared knowledge base visible to all agents. Items are organized by flow: User Request → Goal → Tasks → Agent Outputs → WeSpeaker Response.
         </p>
       </div>
 
-      <div className="space-y-8">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="space-y-8 max-w-7xl mx-auto">
         {flowGroups.map((group, groupIdx) => (
           <div key={groupIdx} className="space-y-4">
             {/* User Request */}
