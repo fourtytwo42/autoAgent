@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 interface Message {
   id: string;
@@ -403,6 +404,7 @@ export default function ConversationPage() {
                   <div className="prose prose-invert dark:prose-invert max-w-none break-words prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-em:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground prose-blockquote:text-muted-foreground prose-blockquote:border-muted-foreground">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
                       components={{
                         // Style code blocks
                         code: ({ node, inline, className, children, ...props }: any) => {
@@ -510,6 +512,7 @@ export default function ConversationPage() {
                   <div className="prose prose-invert dark:prose-invert max-w-none break-words prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-em:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
                       components={{
                         code: ({ node, inline, className, children, ...props }: any) => {
                           return !inline ? (
