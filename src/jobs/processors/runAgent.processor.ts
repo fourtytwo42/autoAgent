@@ -129,9 +129,11 @@ export class RunAgentProcessor extends BaseJobProcessor {
       // TaskPlanner output is saved inside handleTaskPlannerOutput, so skip the normal save below
     }
 
-    // Save agent output to blackboard if task_id provided
+    // Save agent output to blackboard
+    const goalId = payload.context?.goal_id;
+    
     if (taskId) {
-      
+      // Save output linked to task
       try {
         console.log(`[RunAgentProcessor] Saving output for task ${taskId} from agent ${payload.agent_id}`);
         const agentOutput = await blackboardService.createAgentOutput(
@@ -174,8 +176,46 @@ export class RunAgentProcessor extends BaseJobProcessor {
           console.error(`[RunAgentProcessor] Error checking task completion for ${taskId}:`, checkError);
         }
       }
+    } else if (goalId && payload.agent_id === 'WeSpeaker') {
+      // Save WeSpeaker output linked to goal (for task completion responses)
+      try {
+        console.log(`[RunAgentProcessor] Saving WeSpeaker output for goal ${goalId}`);
+        const agentOutput = await blackboardService.create({
+          type: 'agent_output',
+          summary: `Output from ${output.agent_id}`,
+          dimensions: {
+            agent_id: output.agent_id,
+            model_id: output.model_id,
+            status: 'completed',
+            goal_id: goalId,
+            ...output.metadata,
+          },
+          links: {
+            parents: [goalId],
+          },
+          detail: {
+            content: output.output,
+          },
+        });
+        
+        console.log(`[RunAgentProcessor] Created WeSpeaker output ${agentOutput.id} for goal ${goalId}`);
+        
+        // Schedule Judge to evaluate this output
+        await jobQueue.createRunAgentJob(
+          'Judge',
+          {
+            agent_output_id: agentOutput.id,
+            agent_output: output.output,
+            goal_id: goalId,
+            agent_id: output.agent_id,
+            web_enabled: payload.context?.web_enabled ?? false,
+          }
+        );
+      } catch (error) {
+        console.error(`[RunAgentProcessor] Error saving WeSpeaker output for goal ${goalId}:`, error);
+      }
     } else {
-      console.log(`[RunAgentProcessor] No task_id in payload for agent ${payload.agent_id}, skipping task output save`);
+      console.log(`[RunAgentProcessor] No task_id or goal_id in payload for agent ${payload.agent_id}, skipping output save`);
     }
 
     // Update agent metrics
@@ -200,13 +240,11 @@ export class RunAgentProcessor extends BaseJobProcessor {
       },
     });
 
-    // If WeSpeaker completed a task completion response, clean up completed tasks
-    if (payload.agent_id === 'WeSpeaker' && payload.context?.cleanup_after && payload.context?.goal_id) {
-      // Wait a bit to ensure the response is saved
-      setTimeout(async () => {
-        await cleanupCompletedTasks(payload.context.goal_id);
-      }, 2000);
-    }
+    // Note: We no longer delete completed tasks - they stay in the blackboard
+    // Tasks are only filtered from the UI task list, not deleted from the database
+    // if (payload.agent_id === 'WeSpeaker' && payload.context?.cleanup_after && payload.context?.goal_id) {
+    //   await cleanupCompletedTasks(payload.context.goal_id);
+    // }
     
     // If WeSpeaker answered a user query request, mark it as answered
     if (payload.agent_id === 'WeSpeaker' && payload.context?.user_query_request_id) {

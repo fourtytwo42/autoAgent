@@ -254,7 +254,7 @@ export async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: s
         message: contextMessage,
         task_completion: true,
         completed_tasks: taskItems.map(t => t.id),
-        cleanup_after: true, // Flag to clean up tasks after response
+        cleanup_after: false, // Don't delete tasks - keep them in blackboard
         web_enabled: webEnabled,
       },
       {
