@@ -22,6 +22,7 @@ import { taskManager } from '@/src/orchestrator/taskManager';
 import { checkTaskCompletion } from './taskCompletion';
 import { cleanupCompletedTasks, cleanupStuckJobs } from './taskCleanup';
 import { jobQueue } from '@/src/jobs/queue';
+import { jobScheduler } from '@/src/jobs/scheduler';
 
 export class RunAgentProcessor extends BaseJobProcessor {
   type: JobType = 'run_agent';
@@ -139,16 +140,35 @@ export class RunAgentProcessor extends BaseJobProcessor {
       try {
         const agentOutput = await blackboardService.findById(agentOutputId);
         if (agentOutput) {
+          // Extract summary from JSON output if available
+          let summaryText = output.output;
+          try {
+            // Try to parse as JSON (Summarizer returns JSON)
+            const jsonMatch = output.output.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.summary && typeof parsed.summary === 'string') {
+                summaryText = parsed.summary;
+                console.log(`[RunAgentProcessor] Extracted summary from JSON: ${summaryText.substring(0, 100)}...`);
+              }
+            }
+          } catch (e) {
+            // Not JSON or parse failed, use output as-is
+            console.log(`[RunAgentProcessor] Using raw output as summary (not JSON): ${summaryText.substring(0, 100)}...`);
+          }
+          
           // Update the agent_output item with the summary
           await blackboardService.update(agentOutputId, {
-            summary: output.output, // Use Summarizer's output as the summary
+            summary: summaryText, // Use extracted summary
             dimensions: {
               ...(agentOutput.dimensions || {}),
               summary_created: true,
               summary_key_points: output.metadata?.key_points || [],
             },
           });
-          console.log(`[RunAgentProcessor] Updated agent output ${agentOutputId} with summary`);
+          console.log(`[RunAgentProcessor] Updated agent output ${agentOutputId} with summary: ${summaryText.substring(0, 100)}...`);
+        } else {
+          console.error(`[RunAgentProcessor] Agent output ${agentOutputId} not found for Summarizer`);
         }
       } catch (error) {
         console.error(`[RunAgentProcessor] Error updating agent output with summary:`, error);
@@ -178,7 +198,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
         console.log(`[RunAgentProcessor] Created agent output ${agentOutput.id} for task ${taskId}`);
 
         // Schedule Summarizer to create a summary of this output
-        await jobQueue.createRunAgentJob(
+        const summarizerJob = await jobQueue.createRunAgentJob(
           'Summarizer',
           {
             agent_output_id: agentOutput.id,
@@ -189,6 +209,15 @@ export class RunAgentProcessor extends BaseJobProcessor {
             model_id: output.model_id,
           }
         );
+        console.log(`[RunAgentProcessor] Scheduled Summarizer job ${summarizerJob.id} for agent output ${agentOutput.id}`);
+        
+        // Process Summarizer job immediately to ensure summary is created quickly
+        try {
+          await jobScheduler.processJobImmediately(summarizerJob.id);
+          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} processed immediately`);
+        } catch (error) {
+          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
 
         // Schedule Judge to evaluate this output
         await jobQueue.createRunAgentJob(
@@ -254,6 +283,27 @@ export class RunAgentProcessor extends BaseJobProcessor {
             latency_ms: output.latency_ms, // Include latency for model evaluator
           },
         });
+
+        // Schedule Summarizer to create a summary of this WeSpeaker output
+        const summarizerJob = await jobQueue.createRunAgentJob(
+          'Summarizer',
+          {
+            agent_output_id: agentOutput.id,
+            agent_output: output.output,
+            goal_id: goalId,
+            agent_id: output.agent_id,
+            model_id: output.model_id,
+          }
+        );
+        console.log(`[RunAgentProcessor] Scheduled Summarizer job ${summarizerJob.id} for WeSpeaker output ${agentOutput.id}`);
+        
+        // Process Summarizer job immediately
+        try {
+          await jobScheduler.processJobImmediately(summarizerJob.id);
+          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} processed immediately`);
+        } catch (error) {
+          console.log(`[RunAgentProcessor] Summarizer job ${summarizerJob.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
         
         console.log(`[RunAgentProcessor] Created WeSpeaker output ${agentOutput.id} for goal ${goalId}`);
         
