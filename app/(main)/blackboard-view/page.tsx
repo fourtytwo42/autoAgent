@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -116,6 +116,100 @@ export default function BlackboardViewPage() {
     return new Date(dateString).toLocaleString();
   };
 
+  // Check if a string looks like a UUID
+  const isUUID = (str: string): boolean => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  };
+
+  // Check if a dimension key suggests it's an ID reference
+  const isIdKey = (key: string): boolean => {
+    return key.endsWith('_id') || key === 'id' || key.endsWith('_ids');
+  };
+
+  // Render a dimension value, making IDs clickable
+  const renderDimensionValue = (key: string, value: any): React.ReactNode => {
+    const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    
+    // If it's an ID key and the value is a UUID, make it clickable
+    if (isIdKey(key) && typeof value === 'string' && isUUID(value)) {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleItemClick(value);
+          }}
+          className="text-primary hover:underline font-medium cursor-pointer"
+        >
+          {valueStr}
+        </button>
+      );
+    }
+    
+    // If value is an array of UUIDs, make each clickable
+    if (Array.isArray(value)) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.map((item, idx) => {
+            const itemStr = String(item);
+            if (isUUID(itemStr)) {
+              return (
+                <button
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleItemClick(itemStr);
+                  }}
+                  className="text-primary hover:underline font-medium cursor-pointer text-xs"
+                >
+                  {itemStr.substring(0, 8)}...
+                </button>
+              );
+            }
+            return <span key={idx} className="text-xs">{itemStr}</span>;
+          })}
+        </div>
+      );
+    }
+    
+    // If it's a string that contains UUIDs, try to extract and make them clickable
+    if (typeof value === 'string' && value.length > 30) {
+      const uuidMatches = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+      if (uuidMatches && uuidMatches.length > 0) {
+        let result: React.ReactNode[] = [];
+        let lastIndex = 0;
+        
+        uuidMatches.forEach((uuid, idx) => {
+          const uuidIndex = value.indexOf(uuid, lastIndex);
+          if (uuidIndex > lastIndex) {
+            result.push(<span key={`text-${idx}`}>{value.substring(lastIndex, uuidIndex)}</span>);
+          }
+          result.push(
+            <button
+              key={`uuid-${idx}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleItemClick(uuid);
+              }}
+              className="text-primary hover:underline font-medium cursor-pointer"
+            >
+              {uuid}
+            </button>
+          );
+          lastIndex = uuidIndex + uuid.length;
+        });
+        
+        if (lastIndex < value.length) {
+          result.push(<span key="text-end">{value.substring(lastIndex)}</span>);
+        }
+        
+        return <span>{result}</span>;
+      }
+    }
+    
+    return <span>{valueStr}</span>;
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -144,9 +238,13 @@ export default function BlackboardViewPage() {
                   <Badge className={getTypeColor(selectedItem.type)}>
                     {selectedItem.type}
                   </Badge>
-                  <span className="text-sm text-muted-foreground">
+                  <button
+                    onClick={() => handleItemClick(selectedItem.id)}
+                    className="text-sm text-primary hover:underline font-medium cursor-pointer"
+                    title="Click to view this item"
+                  >
                     {selectedItem.id.substring(0, 8)}...
-                  </span>
+                  </button>
                 </div>
                 <CardTitle className="text-2xl mb-2">{selectedItem.summary}</CardTitle>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -176,8 +274,8 @@ export default function BlackboardViewPage() {
                   {Object.entries(selectedItem.dimensions).map(([key, value]) => (
                     <div key={key} className="bg-muted p-3 rounded-md">
                       <div className="text-xs text-muted-foreground uppercase mb-1">{key}</div>
-                      <div className="text-sm font-medium text-foreground">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                      <div className="text-sm font-medium text-foreground break-words">
+                        {renderDimensionValue(key, value)}
                       </div>
                     </div>
                   ))}
@@ -377,11 +475,29 @@ export default function BlackboardViewPage() {
                     </div>
                     {item.dimensions && Object.keys(item.dimensions).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {Object.entries(item.dimensions).slice(0, 3).map(([key, value]) => (
-                          <Badge key={key} variant="outline" className="text-xs">
-                            {key}: {typeof value === 'object' ? JSON.stringify(value).substring(0, 20) : String(value).substring(0, 20)}
-                          </Badge>
-                        ))}
+                        {Object.entries(item.dimensions).slice(0, 3).map(([key, value]) => {
+                          const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                          const displayValue = valueStr.length > 20 ? valueStr.substring(0, 20) + '...' : valueStr;
+                          const isClickable = isIdKey(key) && typeof value === 'string' && isUUID(value);
+                          
+                          return (
+                            <Badge 
+                              key={key} 
+                              variant="outline" 
+                              className={`text-xs ${isClickable ? 'cursor-pointer hover:bg-primary/10' : ''}`}
+                              onClick={isClickable ? (e) => {
+                                e.stopPropagation();
+                                handleItemClick(value);
+                              } : undefined}
+                            >
+                              {key}: {isClickable ? (
+                                <span className="text-primary font-medium">{displayValue}</span>
+                              ) : (
+                                displayValue
+                              )}
+                            </Badge>
+                          );
+                        })}
                         {Object.keys(item.dimensions).length > 3 && (
                           <Badge variant="outline" className="text-xs">
                             +{Object.keys(item.dimensions).length - 3} more

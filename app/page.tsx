@@ -287,7 +287,7 @@ export default function ConversationPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
         <h1 className="text-2xl font-bold text-foreground">Conversation</h1>
         <div className="flex items-center gap-4">
