@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Play, Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 interface Task {
   id: string;
@@ -38,6 +40,7 @@ export default function TasksPage() {
   const [agentStatus, setAgentStatus] = useState<Record<string, AgentStatus>>({});
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -187,8 +190,23 @@ export default function TasksPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground">Tasks</h1>
             <p className="text-muted-foreground mt-1">
-              {tasks.length} task{tasks.length !== 1 ? 's' : ''} total
+              {tasks.filter(t => showCompleted || t.dimensions?.status !== 'completed').length} active task{tasks.filter(t => showCompleted || t.dimensions?.status !== 'completed').length !== 1 ? 's' : ''}
+              {!showCompleted && tasks.filter(t => t.dimensions?.status === 'completed').length > 0 && (
+                <span className="ml-2">({tasks.filter(t => t.dimensions?.status === 'completed').length} completed hidden)</span>
+              )}
             </p>
+          </div>
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="show-completed"
+                checked={showCompleted}
+                onCheckedChange={(checked) => setShowCompleted(checked === true)}
+              />
+              <Label htmlFor="show-completed" className="text-sm text-muted-foreground cursor-pointer">
+                Show completed
+              </Label>
+            </div>
           </div>
         </div>
 
@@ -269,7 +287,9 @@ export default function TasksPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tasks.map((task) => {
+                  {tasks
+                    .filter(task => showCompleted || task.dimensions?.status !== 'completed')
+                    .map((task) => {
                     const assignedAgent = task.dimensions?.assigned_agent;
                     const status = task.dimensions?.status || 'pending';
                     const canStart = status === 'pending' || status === 'assigned';
