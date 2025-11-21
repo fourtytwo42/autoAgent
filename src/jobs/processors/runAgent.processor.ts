@@ -20,6 +20,7 @@ import { eventsRepository } from '@/src/db/repositories/events.repository';
 import { taskManager } from '@/src/orchestrator/taskManager';
 import { checkTaskCompletion } from './taskCompletion';
 import { cleanupCompletedTasks, cleanupStuckJobs } from './taskCleanup';
+import { jobQueue } from '@/src/jobs/queue';
 
 export class RunAgentProcessor extends BaseJobProcessor {
   type: JobType = 'run_agent';
@@ -194,88 +195,44 @@ export class RunAgentProcessor extends BaseJobProcessor {
     
     const tasks: Array<{ summary: string; priority: string; agent_count: number; task_type: string; dependencies: number[] }> = [];
 
-    const tryParseJsonTasks = () => {
+    const tryParseJsonTasks = (): any => {
       if (taskText.length === 0) {
-        return;
+        console.log(`[TaskPlanner] Empty output, skipping JSON parse`);
+        return null;
       }
 
-      const firstBrace = taskText.indexOf('{');
-      const lastBrace = taskText.lastIndexOf('}');
+      // Try to find JSON object - look for { ... } pattern
+      let firstBrace = taskText.indexOf('{');
+      let lastBrace = taskText.lastIndexOf('}');
+      
+      // If no braces found, try to parse the entire text as JSON
       if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-        return;
+        console.log(`[TaskPlanner] No JSON braces found, trying to parse entire text as JSON`);
+        try {
+          const parsed = JSON.parse(taskText);
+          if (parsed && Array.isArray(parsed.tasks)) {
+            console.log(`[TaskPlanner] Successfully parsed JSON from entire text, found ${parsed.tasks.length} tasks`);
+            return parsed;
+          }
+        } catch (e) {
+          console.log(`[TaskPlanner] Failed to parse entire text as JSON: ${e}`);
+        }
+        return null;
       }
 
       try {
         const jsonString = taskText.slice(firstBrace, lastBrace + 1);
+        console.log(`[TaskPlanner] Extracted JSON string (length: ${jsonString.length}), attempting parse...`);
         const parsed = JSON.parse(jsonString);
         if (!parsed || !Array.isArray(parsed.tasks)) {
-          return;
+          console.log(`[TaskPlanner] Parsed JSON but no tasks array found. Keys: ${Object.keys(parsed || {})}`);
+          return null;
         }
-
-        for (const rawTask of parsed.tasks) {
-          if (!rawTask) continue;
-          const summary = (rawTask.summary || rawTask.description || '').trim();
-          if (summary.length < 10) continue; // Require at least 10 chars
-          
-          // Filter out explanation text, headers, dependency descriptions, implementation notes, and non-actionable fragments
-          const summaryLower = summary.toLowerCase();
-          if (
-            summaryLower.startsWith('priority') ||
-            summaryLower.startsWith('task ') && (summaryLower.includes('are') || summaryLower.includes('must') || summaryLower.includes('requires') || summaryLower.includes('depends')) ||
-            summaryLower.includes('rationale') ||
-            summaryLower.includes('can be deferred') ||
-            summaryLower.includes('can run concurrently') ||
-            summaryLower.includes('final checks') ||
-            summaryLower.includes('parallel tasks') ||
-            summaryLower.includes('enhance quality') ||
-            summaryLower.includes('essential for') ||
-            summaryLower.includes('must finish') ||
-            summaryLower.includes('requires completion') ||
-            summaryLower.includes('relies on') ||
-            summaryLower.includes('depends on') ||
-            summaryLower.includes('should align') ||
-            summaryLower.includes('requires completion of') ||
-            summaryLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:" or "Data Sources:"
-            summaryLower.match(/^(data sources|automation tips|user interaction|implementation|notes|tips|sources):/i) || // Section headers
-            summaryLower.includes('workflow orchestrator') || // Implementation suggestions
-            summaryLower.includes('cache results for') || // Implementation notes
-            summaryLower.includes('api for') || // Data source lists
-            summaryLower.match(/^(tripadvisor|yelp|google|booking\.com|expedia|hotels\.com|weedmaps|leafly|noaa|accuweather)/i) || // Just listing data sources
-            summaryLower.match(/^tasks?\s*\d+/) || // "Task 1" or "Tasks 1-3"
-            summary.length < 20 && !summaryLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|generate|compile|assemble|draft|identify|recommend|provide|list|outline|search|book|reserve|schedule|send|organize|use|compile)\b/i)
-          ) {
-            console.log(`[TaskPlanner] Skipping invalid task fragment: "${summary}"`);
-            continue;
-          }
-
-          const priorityLower = (rawTask.priority || '').toString().toLowerCase();
-          let taskPriority: 'high' | 'medium' | 'low' = 'medium';
-          if (priorityLower.includes('high')) taskPriority = 'high';
-          else if (priorityLower.includes('low')) taskPriority = 'low';
-
-          let agentCount = parseInt(rawTask.agent_count, 10);
-          if (Number.isNaN(agentCount)) agentCount = 1;
-          agentCount = Math.min(Math.max(agentCount, 1), 5);
-
-          let cleanTaskType = (rawTask.task_type || 'general').toString().toLowerCase().trim();
-          if (!cleanTaskType) cleanTaskType = 'general';
-
-          const dependencies = Array.isArray(rawTask.dependencies)
-            ? rawTask.dependencies
-                .map((dep: any) => parseInt(dep, 10))
-                .filter((dep: number) => Number.isInteger(dep) && dep > 0)
-            : [];
-
-          tasks.push({
-            summary: summary.substring(0, 500),
-            priority: taskPriority,
-            agent_count: agentCount,
-            task_type: cleanTaskType,
-            dependencies,
-          });
-        }
+        console.log(`[TaskPlanner] Successfully parsed JSON, found ${parsed.tasks.length} tasks`);
+        return parsed;
       } catch (error) {
-        console.error('Failed to parse TaskPlanner JSON output:', error);
+        console.error(`[TaskPlanner] Failed to parse TaskPlanner JSON output:`, error);
+        return null;
       }
     };
 
