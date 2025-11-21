@@ -149,8 +149,10 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
           // Add tool results to metadata
           if (toolResults.length > 0) {
             metadata.tool_calls = toolResults;
+            // Extract content from JSON first
+            const baseContent = extractTextFromJson(jsonData);
             // Append tool results to output for context
-            output = extractTextFromJson(jsonData);
+            output = baseContent;
             if (toolResults.length > 0) {
               output += '\n\n**Blackboard Query Results:**\n';
               toolResults.forEach((result, idx) => {
@@ -163,8 +165,19 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
             output = extractTextFromJson(jsonData);
           }
         } else {
-          // Extract content from JSON
+          // Extract content from JSON - prioritize content field
           output = extractTextFromJson(jsonData);
+          
+          // If output is too short or looks like just IDs, log a warning
+          if (output.length < 50 || (output.includes('"ids"') && !output.includes('content'))) {
+            console.warn(`[Worker] Output seems incomplete or contains only IDs. JSON data:`, JSON.stringify(jsonData, null, 2));
+            console.warn(`[Worker] Extracted output:`, output);
+            // Try to get content directly if it exists
+            if (jsonData.content && typeof jsonData.content === 'string' && jsonData.content.length > 10) {
+              output = jsonData.content;
+              console.log(`[Worker] Using content field directly: ${output.substring(0, 100)}...`);
+            }
+          }
         }
         
         // Store additional metadata from JSON if present
@@ -180,6 +193,15 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
       console.warn(`[Worker] Failed to parse JSON output: ${parseResult.error}, using raw output`);
       output = rawOutput;
     }
+    
+    // Ensure output is not empty or just IDs
+    if (!output || output.trim().length === 0 || (output.includes('"ids"') && output.length < 200)) {
+      console.error(`[Worker] Output is empty or invalid. Raw output was: ${rawOutput.substring(0, 500)}`);
+      // Use raw output as fallback
+      output = rawOutput || `Task completed by ${this.agentType.id}`;
+    }
+    
+    console.log(`[Worker] Final output length: ${output.length} chars, preview: ${output.substring(0, 200)}...`);
 
     const latency = Date.now() - startTime;
 
