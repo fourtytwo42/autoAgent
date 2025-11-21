@@ -9,8 +9,8 @@ export class LMStudioProvider extends BaseProvider implements IModelProvider {
   constructor(timeout: number = 120000) {
     super(timeout);
     const config = getProviderConfig('lmstudio');
-    this.baseUrl = config.baseUrl || 'http://localhost:1234';
-    this.timeout = config.timeout || timeout;
+    this.baseUrl = config.baseUrl || 'http://192.168.50.238:1234';
+    this.timeout = config.timeout || 120000; // Default 2 minutes for network
   }
 
   async generateText(

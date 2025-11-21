@@ -21,7 +21,10 @@ const envSchema = z.object({
 
   // Local providers
   OLLAMA_BASE_URL: z.string().url().optional().default('http://localhost:11434'),
-  LM_STUDIO_BASE_URL: z.string().url().optional().default('http://localhost:1234'),
+  LM_STUDIO_BASE_URL: z.string().url().optional().default('http://192.168.50.238:1234'),
+  
+  // Filesystem tool configuration
+  FILESYSTEM_WORKSPACE_PATH: z.string().optional().default('./workspace'),
 
   // Feature flags
   USE_MOCK_PROVIDERS: z

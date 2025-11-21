@@ -4,4 +4,5 @@ export * from './registry';
 export * from './webSearch.tool';
 export * from './filesystem.tool';
 export * from './custom.tool';
+export * from './init';
 

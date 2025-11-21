@@ -56,6 +56,19 @@ export async function setupTestDb(): Promise<void> {
   const migrationsDir = path.resolve(__dirname, '../../migrations');
   
   try {
+    // Ensure we have proper permissions on the public schema
+    try {
+      await db.query('GRANT ALL ON SCHEMA public TO CURRENT_USER');
+      await db.query('GRANT ALL ON ALL TABLES IN SCHEMA public TO CURRENT_USER');
+      await db.query('GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO CURRENT_USER');
+      await db.query('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO CURRENT_USER');
+      await db.query('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO CURRENT_USER');
+    } catch (permError) {
+      // Permissions might already be set or user might not have grant privileges
+      // This is okay, continue with migrations
+      console.log('Note: Could not set permissions (may already be set):', (permError as Error).message);
+    }
+    
     // Get all migration files sorted by name
     const files = await fs.readdir(migrationsDir);
     const sqlFiles = files

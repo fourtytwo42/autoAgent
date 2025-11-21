@@ -2,6 +2,7 @@ import { runMigrations } from './db/migrations';
 import { testConnection } from './config/database';
 import { jobScheduler } from './jobs/scheduler';
 import { agentTypesRepository } from './db/repositories/agentTypes.repository';
+import { initializeTools } from './tools/init';
 import { WeSpeakerPrompt } from './agents/prompts/wespeaker.prompt';
 import { TaskPlannerPrompt } from './agents/prompts/taskPlanner.prompt';
 import { JudgePrompt } from './agents/prompts/judge.prompt';
@@ -37,12 +38,17 @@ export async function initialize(): Promise<void> {
   await seedInitialData();
   console.log('✅ Initial data seeded');
 
-  // Start job scheduler
-  console.log('⚙️  Starting job scheduler...');
-  jobScheduler.start(5000); // Poll every 5 seconds
-  console.log('✅ Job scheduler started');
+      // Initialize tools
+      console.log('🔧 Initializing tools...');
+      initializeTools();
+      console.log('✅ Tools initialized');
 
-  console.log('✅ AutoAgent initialized successfully');
+      // Start job scheduler
+      console.log('⚙️  Starting job scheduler...');
+      jobScheduler.start(5000); // Poll every 5 seconds
+      console.log('✅ Job scheduler started');
+
+      console.log('✅ AutoAgent initialized successfully');
 }
 
 async function seedInitialData(): Promise<void> {

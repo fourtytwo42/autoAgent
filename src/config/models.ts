@@ -31,7 +31,7 @@ export function getProviderConfig(provider: ProviderType): ProviderConfig {
     },
     lmstudio: {
       baseUrl: env.LM_STUDIO_BASE_URL,
-      timeout: env.MODEL_REQUEST_TIMEOUT_MS,
+      timeout: 120000, // Longer timeout for network LM Studio (2 minutes)
     },
   };
 
