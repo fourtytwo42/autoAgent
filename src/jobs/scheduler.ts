@@ -6,6 +6,7 @@ import { env } from '@/src/config/env';
 import { randomUUID } from 'crypto';
 import { taskManager } from '@/src/orchestrator/taskManager';
 import { cleanupStuckJobs } from './processors/taskCleanup';
+import { blackboardService } from '@/src/blackboard/service';
 
 export class JobScheduler {
   private processors: Map<JobType, BaseJobProcessor> = new Map();
