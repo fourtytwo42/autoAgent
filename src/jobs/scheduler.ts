@@ -52,6 +52,20 @@ export class JobScheduler {
         // Try to assign an agent to the task
         await taskManager.assignAgentToTask(task.id);
       }
+      
+      // Also check tasks that might have outputs but aren't marked as completed
+      // This handles cases where assigned_agents wasn't set but outputs exist
+      const { checkTaskCompletion } = await import('./processors/taskCompletion');
+      const assignedTasks = await blackboardService.query({
+        type: 'task',
+        dimensions: { status: 'assigned' },
+        limit: 10,
+      });
+      
+      for (const task of assignedTasks) {
+        // Re-check completion in case outputs exist but task wasn't marked complete
+        await checkTaskCompletion(task.id);
+      }
     } catch (error) {
       console.error('Error processing pending tasks:', error);
     }
