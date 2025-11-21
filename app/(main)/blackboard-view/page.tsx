@@ -996,56 +996,143 @@ export default function BlackboardViewPage() {
                   <div className="ml-4 space-y-3 border-l-2 border-l-green-500/30 pl-4">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-2">Tasks ({goalGroup.tasksWithOutputs.length})</h4>
                     {goalGroup.tasksWithOutputs.map(({ task, outputs }) => (
-                      <Card
-                        key={task.id}
-                        className="border-l-4 border-l-green-500 cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => handleItemClick(task.id)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge className={getTypeColor('task')} variant="outline">Task</Badge>
-                                {task.dimensions?.task_number && (
-                                  <Badge variant="outline" className="text-xs">
-                                    #{task.dimensions.task_number}
-                                  </Badge>
-                                )}
-                                {task.dimensions?.status && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {task.dimensions.status}
-                                  </Badge>
-                                )}
-                                {task.dimensions?.priority && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {task.dimensions.priority}
-                                  </Badge>
-                                )}
+                      <div key={task.id} className="space-y-2">
+                        <Card
+                          className="border-l-4 border-l-green-500 cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleItemClick(task.id)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge className={getTypeColor('task')} variant="outline">Task</Badge>
+                                  {task.dimensions?.task_number && (
+                                    <Badge variant="outline" className="text-xs">
+                                      #{task.dimensions.task_number}
+                                    </Badge>
+                                  )}
+                                  {task.dimensions?.status && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {task.dimensions.status}
+                                    </Badge>
+                                  )}
+                                  {task.dimensions?.priority && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {task.dimensions.priority}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm font-medium text-foreground">{task.summary}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {formatDate(task.created_at)}
+                                  {task.dimensions?.goal_id && (
+                                    <>
+                                      <span>•</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleItemClick(task.dimensions.goal_id);
+                                        }}
+                                        className="text-primary hover:underline"
+                                      >
+                                        Goal: {task.dimensions.goal_id.substring(0, 8)}...
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                              <p className="text-sm font-medium text-foreground">{task.summary}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(task.created_at)}
-                                {task.dimensions?.goal_id && (
-                                  <>
-                                    <span>•</span>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleItemClick(task.dimensions.goal_id);
-                                      }}
-                                      className="text-primary hover:underline"
-                                    >
-                                      Goal: {task.dimensions.goal_id.substring(0, 8)}...
-                                    </button>
-                                  </>
-                                )}
-                              </div>
+                              <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                             </div>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </CardContent>
+                        </Card>
+                        
+                        {/* Agent Outputs for this task */}
+                        {outputs.length > 0 && (
+                          <div className="ml-4 space-y-2 border-l-2 border-l-yellow-500/30 pl-4">
+                            {outputs.map((output) => (
+                              <Card
+                                key={output.id}
+                                className="border-l-4 border-l-yellow-500 cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleItemClick(output.id)}
+                              >
+                                <CardContent className="p-3">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Badge className={getTypeColor('agent_output')} variant="outline">Output</Badge>
+                                        {output.dimensions?.agent_id && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs cursor-pointer hover:bg-primary/10"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleAgentClick(output.dimensions.agent_id);
+                                            }}
+                                          >
+                                            {output.dimensions.agent_id}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="prose prose-invert dark:prose-invert max-w-none prose-sm">
+                                        <ReactMarkdown
+                                          remarkPlugins={[remarkGfm]}
+                                          rehypePlugins={[rehypeRaw]}
+                                          components={{
+                                            p: ({ children }: any) => <p className="my-1 text-foreground text-sm">{children}</p>,
+                                            code: ({ inline, children }: any) => (
+                                              <code className={inline ? 'bg-muted px-1.5 py-0.5 rounded text-xs' : 'block bg-muted p-2 rounded-md overflow-x-auto text-xs'}>
+                                                {children}
+                                              </code>
+                                            ),
+                                            a: ({ href, children }: any) => (
+                                              <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">
+                                                {children}
+                                              </a>
+                                            ),
+                                            br: () => <br />,
+                                            div: ({ children }: any) => <div className="text-sm">{children}</div>,
+                                            span: ({ children }: any) => <span className="text-sm">{children}</span>,
+                                            strong: ({ children }: any) => <strong className="text-sm font-semibold">{children}</strong>,
+                                            em: ({ children }: any) => <em className="text-sm italic">{children}</em>,
+                                          }}
+                                        >
+                                          {output.summary}
+                                        </ReactMarkdown>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+                                        <Calendar className="h-3 w-3" />
+                                        {formatDate(output.created_at)}
+                                        {output.dimensions?.agent_id && (
+                                          <>
+                                            <span>•</span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleAgentClick(output.dimensions.agent_id);
+                                              }}
+                                              className="text-primary hover:underline"
+                                            >
+                                              Worker: {output.dimensions.agent_id}
+                                            </button>
+                                          </>
+                                        )}
+                                        {output.dimensions?.status && (
+                                          <>
+                                            <span>•</span>
+                                            <span>Status: {output.dimensions.status}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
                           </div>
-                        </CardContent>
-                      </Card>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
