@@ -195,14 +195,51 @@ export class Orchestrator {
     // Get conversation history for context
     const conversationHistory = await this.getConversationHistory(goal.id);
     
-    // Build context for WeSpeaker - don't list tasks, just let it know work is happening
+    // Get tasks and their outputs for context (if user is asking about status)
+    const existingTasks = await blackboardService.findChildren(goal.id);
+    const taskItems = existingTasks.filter(t => t.type === 'task');
+    
+    let taskContext = '';
+    if (taskItems.length > 0) {
+      // Check if user is asking about task status
+      const messageLower = request.message.toLowerCase();
+      const isStatusQuery = messageLower.includes('done') || messageLower.includes('complete') || 
+                           messageLower.includes('status') || messageLower.includes('check') ||
+                           messageLower.includes('finished') || messageLower.includes('ready');
+      
+      if (isStatusQuery) {
+        // Get all task outputs
+        const allOutputs = [];
+        for (const task of taskItems) {
+          const outputs = await blackboardService.query({
+            type: 'agent_output',
+            parent_id: task.id,
+          });
+          allOutputs.push(...outputs);
+        }
+        
+        const taskStatuses = taskItems.map(t => {
+          const taskOutputs = allOutputs.filter(o => o.links?.parents?.includes(t.id));
+          const status = t.dimensions?.status || 'pending';
+          const outputTexts = taskOutputs.map(o => {
+            const content = (o.detail as any)?.content || o.summary || '';
+            return `  ${o.dimensions?.agent_id}: ${content.substring(0, 500)}`;
+          }).join('\n');
+          return `Task: ${t.summary} (Status: ${status})\n${outputTexts || '  (In progress...)'}`;
+        }).join('\n\n');
+        
+        taskContext = `\n\nCurrent tasks and their status:\n${taskStatuses}`;
+      }
+    }
+    
+    // Build context for WeSpeaker
     const historyContext = conversationHistory.length > 0
       ? `\n\nPrevious conversation:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}`
       : '';
     
     const contextMessage = isFollowUp
-      ? `${request.message}${historyContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally.`
-      : `${request.message}${historyContext}\n\nPlease provide a natural, conversational response to the user. Acknowledge their request and let them know you're working on it, but don't list tasks or explain what needs to be done.`;
+      ? `${request.message}${historyContext}${taskContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally.`
+      : `${request.message}${historyContext}${taskContext}\n\nPlease provide a natural, conversational response to the user. Acknowledge their request and let them know you're working on it, but don't list tasks or explain what needs to be done.`;
 
     // Execute WeSpeaker to get response immediately
     const output = await agent.execute({

@@ -220,16 +220,30 @@ async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string):
     }
     const judgements = allJudgements;
 
-    // Build context for WeSpeaker
-    const taskSummaries = taskItems.map(t => `- ${t.summary} (${t.dimensions?.status || 'unknown'})`).join('\n');
-    const outputSummaries = allOutputs.map(o => {
-      // Find judgement for this output (judgements have output.id as parent)
-      const judgement = judgements.find(j => j.links?.parents?.includes(o.id));
-      const score = judgement?.dimensions?.score || 'N/A';
-      return `- ${o.dimensions?.agent_id}: ${o.summary.substring(0, 100)}... (Score: ${score})`;
-    }).join('\n');
+    // Build context for WeSpeaker with full task outputs
+    const taskSummaries = [];
+    for (const task of taskItems) {
+      // Find outputs linked to this task
+      const taskOutputs = allOutputs.filter(o => {
+        return o.links?.parents?.includes(task.id);
+      });
+      
+      // Also check children of the task
+      const taskChildren = await blackboardService.findChildren(task.id);
+      const childOutputIds = new Set(taskChildren.map(c => c.id));
+      taskOutputs.push(...allOutputs.filter(o => childOutputIds.has(o.id)));
+      
+      const outputTexts = taskOutputs.map(o => {
+        const content = (o.detail as any)?.content || o.summary || '';
+        const agentId = o.dimensions?.agent_id || 'Unknown';
+        return `  ${agentId}: ${content.substring(0, 1000)}`;
+      }).join('\n');
+      
+      taskSummaries.push(`Task: ${task.summary}\n${outputTexts || '  (No outputs yet)'}`);
+    }
 
-    const contextMessage = `All tasks for the goal "${goal.summary}" have been completed.\n\nTasks completed:\n${taskSummaries}\n\nAgent outputs:\n${outputSummaries}\n\nPlease provide a comprehensive summary to the user about what was accomplished.`;
+    const taskSummariesText = taskSummaries.join('\n\n');
+    const contextMessage = `All tasks for the goal "${goal.summary}" have been completed. Here are the results:\n\n${taskSummariesText}\n\nPlease provide a comprehensive, natural response to the user summarizing what was accomplished. Include specific details from the task outputs above. Be conversational and helpful.`;
 
     // Create job for WeSpeaker
     console.log(`[triggerWeSpeakerForGoal] Creating WeSpeaker job for goal ${goalId}`);

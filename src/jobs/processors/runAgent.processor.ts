@@ -94,6 +94,25 @@ export class RunAgentProcessor extends BaseJobProcessor {
 
     console.log(`[RunAgentProcessor] Executing agent ${payload.agent_id}${payload.context?.goal_id ? ` for goal ${payload.context.goal_id}` : ''}`);
     
+    // Update task status to "working" BEFORE executing agent (if this is a task)
+    const taskId = payload.context?.task_id;
+    if (taskId) {
+      try {
+        const task = await blackboardService.findById(taskId);
+        if (task && task.dimensions?.status !== 'completed' && task.dimensions?.status !== 'working') {
+          await blackboardService.update(taskId, {
+            dimensions: {
+              ...(task.dimensions || {}),
+              status: 'working',
+            },
+          });
+          console.log(`[RunAgentProcessor] Updated task ${taskId} status to working (before agent execution)`);
+        }
+      } catch (error) {
+        console.error(`[RunAgentProcessor] Error updating task status to working:`, error);
+      }
+    }
+    
     const output = await agent.execute(context);
 
     console.log(`[RunAgentProcessor] Agent ${payload.agent_id} completed, output length: ${output.output?.length || 0}`);
@@ -107,23 +126,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
     }
 
     // Save agent output to blackboard if task_id provided
-    const taskId = payload.context?.task_id;
     if (taskId) {
-      // Update task status to "working" when agent starts processing
-      try {
-        const task = await blackboardService.findById(taskId);
-        if (task && task.dimensions?.status !== 'completed') {
-          await blackboardService.update(taskId, {
-            dimensions: {
-              ...(task.dimensions || {}),
-              status: 'working',
-            },
-          });
-          console.log(`[RunAgentProcessor] Updated task ${taskId} status to working`);
-        }
-      } catch (error) {
-        console.error(`[RunAgentProcessor] Error updating task status to working:`, error);
-      }
       
       try {
         console.log(`[RunAgentProcessor] Saving output for task ${taskId} from agent ${payload.agent_id}`);
