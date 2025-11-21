@@ -96,14 +96,55 @@ export default function BlackboardViewPage() {
       const data = await response.json();
       const newItems = data.items || [];
       
-      // Only update if items actually changed (by comparing IDs)
-      const currentIds = new Set(items.map(item => item.id));
-      const newIds = new Set(newItems.map((item: BlackboardItem) => item.id));
-      const idsChanged = currentIds.size !== newIds.size || 
-        Array.from(newIds as Set<string>).some((id: string) => !currentIds.has(id));
-      
-      if (idsChanged || items.length === 0) {
+      if (items.length === 0) {
+        // Initial load - just set items
         setItems(newItems);
+      } else {
+        // Incremental update - merge changes instead of replacing
+        const itemsMap = new Map(items.map(item => [item.id, item]));
+        let hasChanges = false;
+        
+        // Update existing items or add new ones
+        for (const newItem of newItems) {
+          const existingItem = itemsMap.get(newItem.id);
+          if (!existingItem) {
+            // New item - add it
+            itemsMap.set(newItem.id, newItem);
+            hasChanges = true;
+          } else {
+            // Existing item - check if it changed
+            const existingUpdated = existingItem.updated_at ? new Date(existingItem.updated_at).getTime() : 0;
+            const newUpdated = newItem.updated_at ? new Date(newItem.updated_at).getTime() : 0;
+            const summaryChanged = existingItem.summary !== newItem.summary;
+            const dimensionsChanged = JSON.stringify(existingItem.dimensions) !== JSON.stringify(newItem.dimensions);
+            
+            if (newUpdated > existingUpdated || summaryChanged || dimensionsChanged) {
+              // Item was updated - replace it
+              itemsMap.set(newItem.id, newItem);
+              hasChanges = true;
+            }
+          }
+        }
+        
+        // Check for deleted items (items that exist in current but not in new)
+        const newIds = new Set(newItems.map((item: BlackboardItem) => item.id));
+        for (const [id, item] of itemsMap.entries()) {
+          if (!newIds.has(id)) {
+            itemsMap.delete(id);
+            hasChanges = true;
+          }
+        }
+        
+        // Only update state if there were actual changes
+        if (hasChanges) {
+          // Convert back to array and maintain order (newest first)
+          const updatedItems = Array.from(itemsMap.values()).sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime; // Descending order
+          });
+          setItems(updatedItems);
+        }
       }
     } catch (error) {
       console.error('Error fetching blackboard items:', error);
