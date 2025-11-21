@@ -400,7 +400,7 @@ export default function ConfigPage() {
                     <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                       <Button
                         size="sm"
-                        variant="bordered"
+                        variant="secondary"
                         onClick={() => setEditingModel(model)}
                       >
                         Edit
