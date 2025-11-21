@@ -27,27 +27,18 @@ interface Task {
   updated_at: string;
 }
 
-interface AgentStatus {
-  agent_id: string;
-  is_working: boolean;
-  current_work: string | null;
-  job_count: number;
-}
 
 export default function TasksPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [agentStatus, setAgentStatus] = useState<Record<string, AgentStatus>>({});
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     fetchTasks();
-    fetchAgentStatus();
     const interval = setInterval(() => {
       fetchTasks();
-      fetchAgentStatus();
     }, 3000); // Update every 3 seconds
     return () => clearInterval(interval);
   }, []);
@@ -74,19 +65,6 @@ export default function TasksPage() {
     }
   };
 
-  const fetchAgentStatus = async () => {
-    try {
-      const response = await fetch('/api/agents/status');
-      const data = await response.json();
-      const statusMap: Record<string, AgentStatus> = {};
-      data.agentStatus.forEach((status: AgentStatus) => {
-        statusMap[status.agent_id] = status;
-      });
-      setAgentStatus(statusMap);
-    } catch (error) {
-      console.error('Error fetching agent status:', error);
-    }
-  };
 
   const handleStartTask = async (taskId: string) => {
     try {
@@ -96,7 +74,6 @@ export default function TasksPage() {
       if (response.ok) {
         alert('Task started successfully');
         fetchTasks();
-        fetchAgentStatus();
       } else {
         const data = await response.json();
         alert(`Failed to start task: ${data.error || 'Unknown error'}`);
@@ -139,8 +116,10 @@ export default function TasksPage() {
         return <Badge variant="outline" className="bg-yellow-500/20 text-yellow-600">Pending</Badge>;
       case 'assigned':
         return <Badge variant="outline" className="bg-blue-500/20 text-blue-600">Assigned</Badge>;
+      case 'working':
+        return <Badge variant="outline" className="bg-purple-500/20 text-purple-600 animate-pulse">Working</Badge>;
       case 'running':
-        return <Badge variant="outline" className="bg-green-500/20 text-green-600">Running</Badge>;
+        return <Badge variant="outline" className="bg-purple-500/20 text-purple-600 animate-pulse">Working</Badge>;
       case 'completed':
         return <Badge variant="default" className="bg-green-600">Completed</Badge>;
       case 'failed':
@@ -165,23 +144,6 @@ export default function TasksPage() {
     }
   };
 
-  const getAgentStatus = (agentId?: string) => {
-    if (!agentId) return null;
-    const status = agentStatus[agentId];
-    if (!status) return null;
-    
-    if (status.is_working) {
-      return (
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-sm text-muted-foreground max-w-[150px] truncate">
-            {status.current_work || 'Working...'}
-          </span>
-        </div>
-      );
-    }
-    return <span className="text-sm text-muted-foreground">Idle</span>;
-  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
@@ -281,7 +243,6 @@ export default function TasksPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Assigned Agent</TableHead>
-                    <TableHead>Agent Status</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[120px]">Actions</TableHead>
                   </TableRow>
@@ -308,11 +269,6 @@ export default function TasksPage() {
                             <code className="text-sm text-foreground">{assignedAgent}</code>
                           ) : (
                             <span className="text-muted-foreground text-sm">Unassigned</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {assignedAgent ? getAgentStatus(assignedAgent) : (
-                            <span className="text-muted-foreground text-sm">—</span>
                           )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
