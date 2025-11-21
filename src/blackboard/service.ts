@@ -123,6 +123,7 @@ export class BlackboardService {
       links: { parents: [taskId] },
       detail: {
         content: output,
+        latency_ms: metadata?.latency_ms, // Include latency for model evaluator
       },
     });
 
