@@ -32,6 +32,7 @@ export class JudgeAgent extends BaseAgent {
     const agentOutput = context.input.agent_output as string;
     const taskSummary = context.input.task_summary as string || 'Unknown task';
     const agentId = context.input.agent_id as string || 'Unknown agent';
+    const modelId = context.input.model_id as string || '';
 
     // Build evaluation prompt
     const userMessage: ChatMessage = {
@@ -84,6 +85,7 @@ export class JudgeAgent extends BaseAgent {
       dimensions: {
         agent_id: agentId,
         agent_output_id: agentOutputId,
+        model_id: modelId, // Include model_id so evaluator can find judgements by model
         score,
         status: 'completed',
         ...scores,

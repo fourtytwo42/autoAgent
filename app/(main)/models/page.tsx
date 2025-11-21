@@ -90,14 +90,14 @@ export default function ModelsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 min-w-[100px]">
-                        <Progress value={(model.quality_score || 0) * 100} className="flex-1 max-w-[60px]" />
-                        <span className="text-sm text-foreground">{(model.quality_score * 100).toFixed(0)}%</span>
+                        <Progress value={(model.quality_score ?? 0.5) * 100} className="flex-1 max-w-[60px]" />
+                        <span className="text-sm text-foreground">{((model.quality_score ?? 0.5) * 100).toFixed(0)}%</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 min-w-[100px]">
-                        <Progress value={(model.reliability_score || 0) * 100} className="flex-1 max-w-[60px]" />
-                        <span className="text-sm text-foreground">{(model.reliability_score * 100).toFixed(0)}%</span>
+                        <Progress value={(model.reliability_score ?? 0.5) * 100} className="flex-1 max-w-[60px]" />
+                        <span className="text-sm text-foreground">{((model.reliability_score ?? 0.5) * 100).toFixed(0)}%</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-foreground">

@@ -29,7 +29,12 @@ export async function GET(request: NextRequest) {
         if (payload.context?.task_summary) {
           currentWork = payload.context.task_summary.substring(0, 50);
         } else if (payload.context?.goal_id) {
-          currentWork = 'Working on goal';
+          // Special handling for TaskPlanner
+          if (agent.id === 'TaskPlanner') {
+            currentWork = 'Planning tasks';
+          } else {
+            currentWork = 'Working on goal';
+          }
         } else if (payload.context?.message) {
           currentWork = payload.context.message.substring(0, 50);
         } else {

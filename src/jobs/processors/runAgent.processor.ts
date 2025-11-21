@@ -154,9 +154,21 @@ export class RunAgentProcessor extends BaseJobProcessor {
             agent_output: output.output,
             task_id: taskId,
             agent_id: output.agent_id,
+            model_id: output.model_id,
             web_enabled: payload.context?.web_enabled ?? false,
           }
         );
+        
+        // Update model metrics after a delay (let judge complete first)
+        setTimeout(async () => {
+          try {
+            const { modelEvaluator } = await import('@/src/models/evaluator');
+            await modelEvaluator.updateModelScores(output.model_id);
+            console.log(`[RunAgentProcessor] Updated model scores for ${output.model_id}`);
+          } catch (error) {
+            console.error(`[RunAgentProcessor] Error updating model scores:`, error);
+          }
+        }, 5000);
 
         // Check if all agents working on this task have completed
         const taskCompleted = await checkTaskCompletion(taskId);
@@ -208,9 +220,21 @@ export class RunAgentProcessor extends BaseJobProcessor {
             agent_output: output.output,
             goal_id: goalId,
             agent_id: output.agent_id,
+            model_id: output.model_id,
             web_enabled: payload.context?.web_enabled ?? false,
           }
         );
+        
+        // Update model metrics after a delay (let judge complete first)
+        setTimeout(async () => {
+          try {
+            const { modelEvaluator } = await import('@/src/models/evaluator');
+            await modelEvaluator.updateModelScores(output.model_id);
+            console.log(`[RunAgentProcessor] Updated model scores for ${output.model_id}`);
+          } catch (error) {
+            console.error(`[RunAgentProcessor] Error updating model scores:`, error);
+          }
+        }, 5000);
       } catch (error) {
         console.error(`[RunAgentProcessor] Error saving WeSpeaker output for goal ${goalId}:`, error);
       }

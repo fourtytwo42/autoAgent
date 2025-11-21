@@ -23,7 +23,23 @@ export async function GET(request: NextRequest) {
       models = await modelRegistry.getAllModels();
     }
 
-    return NextResponse.json({ models, count: models.length });
+    // Format models for frontend with proper metric handling
+    const formattedModels = models.map(model => ({
+      id: model.id,
+      name: model.name,
+      provider: model.provider,
+      is_enabled: model.is_enabled ?? true,
+      modalities: model.modalities,
+      quality_score: model.qualityScore ?? 0.5,
+      reliability_score: model.reliabilityScore ?? 0.5,
+      avg_latency_ms: model.avg_latency_ms ?? null,
+      // For LM Studio and Ollama, cost is always N/A
+      cost_per_1k_tokens: (model.provider === 'lmstudio' || model.provider === 'ollama') 
+        ? null 
+        : (model.cost_per_1k_tokens ?? null),
+    }));
+
+    return NextResponse.json({ models: formattedModels, count: formattedModels.length });
   } catch (error) {
     console.error('Error in models API:', error);
     return NextResponse.json(
