@@ -284,13 +284,15 @@ export class RunAgentProcessor extends BaseJobProcessor {
     console.log(`[TaskPlanner] After JSON parsing: ${tasks.length} tasks found`);
     
     if (tasks.length === 0) {
-      // First, try to parse markdown tables
-      // Look for table rows with format: | # | Description | Priority | Agent Count | Task Type | ...
-      const lines = taskText.split('\n');
-      const seenTasks = new Set<string>();
-      let inTable = false;
-      let headerFound = false;
-      let columnMap: Record<string, number> = {}; // Map column names to indices
+        // First, try to parse markdown tables
+        // Look for table rows with format: | # | Description | Priority | Agent Count | Task Type | ...
+        const lines = taskText.split('\n');
+        const seenTasks = new Set<string>();
+        let inTable = false;
+        let headerFound = false;
+        let columnMap: Record<string, number> = {}; // Map column names to indices
+        
+        console.log(`[TaskPlanner] Starting table parsing. Total lines: ${lines.length}`);
       
       for (const line of lines) {
         const trimmed = line.trim();
@@ -317,24 +319,29 @@ export class RunAgentProcessor extends BaseJobProcessor {
           continue;
         }
         
-        // Process table rows
-        if (inTable && headerFound && trimmed.startsWith('|') && trimmed.endsWith('|')) {
-          // Split by pipe and extract columns
-          const columns = trimmed.split('|').map(col => col.trim()).filter(col => col.length > 0);
-          
-          // Need at least 3 columns: #, Description, Priority
-          if (columns.length >= 3) {
-            const taskNum = columns[columnMap.number ?? 0];
-            const description = columns[columnMap.description ?? 1] || '';
-            const priority = columns[columnMap.priority ?? 2] || 'medium';
-            const agentCountStr = columns[columnMap.agent_count ?? 3] || '1';
-            const taskType = columns[columnMap.task_type ?? 4] || 'general';
-            const dependenciesStr = columns[columnMap.dependencies ?? 5] || '';
-            
-            // Skip if not a number (header or invalid row)
-            if (!/^\d+$/.test(taskNum)) {
-              continue;
-            }
+            // Process table rows
+            if (inTable && headerFound && trimmed.startsWith('|') && trimmed.endsWith('|')) {
+              // Split by pipe and extract columns
+              const columns = trimmed.split('|').map(col => col.trim()).filter(col => col.length > 0);
+              
+              // Need at least 3 columns: #, Description, Priority
+              if (columns.length >= 3) {
+                let taskNum = columns[columnMap.number ?? 0];
+                // Remove markdown formatting from task number (e.g., "**1**" -> "1")
+                taskNum = taskNum.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+                const description = columns[columnMap.description ?? 1] || '';
+                const priority = columns[columnMap.priority ?? 2] || 'medium';
+                const agentCountStr = columns[columnMap.agent_count ?? 3] || '1';
+                const taskType = columns[columnMap.task_type ?? 4] || 'general';
+                const dependenciesStr = columns[columnMap.dependencies ?? 5] || '';
+                
+                console.log(`[TaskPlanner] Parsing row: taskNum="${taskNum}", description="${description.substring(0, 50)}..."`);
+                
+                // Skip if not a number (header or invalid row)
+                if (!/^\d+$/.test(taskNum)) {
+                  console.log(`[TaskPlanner] Skipping row - taskNum "${taskNum}" is not a number`);
+                  continue;
+                }
             
             // Skip if description is too short or is a header
             if (description.length < 10 || 
@@ -394,33 +401,29 @@ export class RunAgentProcessor extends BaseJobProcessor {
             
             // Filter out explanation text, headers, dependency descriptions, implementation notes, and non-actionable fragments
             const descLower = cleanDesc.toLowerCase();
-            if (
-              descLower.startsWith('priority') ||
-              descLower.startsWith('task ') && (descLower.includes('are') || descLower.includes('must') || descLower.includes('requires') || descLower.includes('depends')) ||
-              descLower.includes('rationale') ||
-              descLower.includes('can be deferred') ||
-              descLower.includes('can run concurrently') ||
-              descLower.includes('final checks') ||
-              descLower.includes('parallel tasks') ||
-              descLower.includes('enhance quality') ||
-              descLower.includes('essential for') ||
-              descLower.includes('must finish') ||
-              descLower.includes('requires completion') ||
-              descLower.includes('relies on') ||
-              descLower.includes('depends on') ||
-              descLower.includes('should align') ||
-              descLower.includes('requires completion of') ||
-              descLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:" or "Data Sources:"
-              descLower.match(/^(data sources|automation tips|user interaction|implementation|notes|tips|sources):/i) || // Section headers
-              descLower.includes('workflow orchestrator') || // Implementation suggestions
-              descLower.includes('cache results for') || // Implementation notes
-              descLower.includes('api for') || // Data source lists
-              descLower.match(/^(tripadvisor|yelp|google|booking\.com|expedia|hotels\.com|weedmaps|leafly|noaa|accuweather)/i) || // Just listing data sources
-              descLower.match(/^tasks?\s*\d+/) || // "Task 1" or "Tasks 1-3"
-              cleanDesc.length < 20 || // Too short to be a real task
-              !descLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|generate|compile|assemble|draft|identify|recommend|provide|list|outline|search|book|reserve|schedule)\b/i) // Must contain action verb
-            ) {
-              console.log(`[TaskPlanner] Skipping invalid task fragment: "${cleanDesc}"`);
+            let skipReason = '';
+            if (descLower.startsWith('priority')) {
+              skipReason = 'starts with priority';
+            } else if (descLower.startsWith('task ') && (descLower.includes('are') || descLower.includes('must') || descLower.includes('requires') || descLower.includes('depends'))) {
+              skipReason = 'task dependency description';
+            } else if (descLower.includes('rationale') || descLower.includes('can be deferred') || descLower.includes('can run concurrently') || descLower.includes('final checks') || descLower.includes('parallel tasks') || descLower.includes('enhance quality') || descLower.includes('essential for') || descLower.includes('must finish') || descLower.includes('requires completion') || descLower.includes('relies on') || descLower.includes('depends on') || descLower.includes('should align') || descLower.includes('requires completion of')) {
+              skipReason = 'explanation text';
+            } else if (descLower.match(/^[a-z\s]+:$/) || descLower.match(/^(data sources|automation tips|user interaction|implementation|notes|tips|sources):/i)) {
+              skipReason = 'section header';
+            } else if (descLower.includes('workflow orchestrator') || descLower.includes('cache results for') || descLower.includes('api for')) {
+              skipReason = 'implementation note';
+            } else if (descLower.match(/^(tripadvisor|yelp|google|booking\.com|expedia|hotels\.com|weedmaps|leafly|noaa|accuweather)/i)) {
+              skipReason = 'data source list';
+            } else if (descLower.match(/^tasks?\s*\d+/)) {
+              skipReason = 'task reference';
+            } else if (cleanDesc.length < 20) {
+              skipReason = `too short (${cleanDesc.length} chars)`;
+            } else if (!descLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|generate|compile|assemble|draft|identify|recommend|provide|list|outline|search|book|reserve|schedule)\b/i)) {
+              skipReason = 'no action verb';
+            }
+            
+            if (skipReason) {
+              console.log(`[TaskPlanner] Skipping task "${cleanDesc.substring(0, 60)}..." - reason: ${skipReason}`);
               continue;
             }
             
