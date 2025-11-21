@@ -60,9 +60,9 @@ export default function BlackboardViewPage() {
     try {
       setLoadingRelated(true);
       const allRelatedIds = [
-        ...(item.links.parents || []),
-        ...(item.links.children || []),
-        ...(item.links.related || []),
+        ...(item.links?.parents || []),
+        ...(item.links?.children || []),
+        ...(item.links?.related || []),
       ];
 
       if (allRelatedIds.length === 0) {
@@ -71,13 +71,16 @@ export default function BlackboardViewPage() {
       }
 
       const relatedPromises = allRelatedIds.map(id => 
-        fetch(`/api/blackboard/${id}`).then(r => r.json()).catch(() => null)
+        fetch(`/api/blackboard/${id}`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
       );
       
       const related = await Promise.all(relatedPromises);
       setRelatedItems(related.filter(Boolean));
     } catch (error) {
       console.error('Error fetching related items:', error);
+      setRelatedItems([]);
     } finally {
       setLoadingRelated(false);
     }
@@ -218,7 +221,7 @@ export default function BlackboardViewPage() {
             )}
 
             {/* Links */}
-            {(selectedItem.links.parents?.length || selectedItem.links.children?.length || selectedItem.links.related?.length) && (
+            {((selectedItem.links?.parents?.length || 0) + (selectedItem.links?.children?.length || 0) + (selectedItem.links?.related?.length || 0) > 0) && (
               <div>
                 <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <ExternalLink className="h-5 w-5" />
@@ -228,12 +231,12 @@ export default function BlackboardViewPage() {
                   <div className="text-muted-foreground">Loading related items...</div>
                 ) : (
                   <div className="space-y-4">
-                    {selectedItem.links.parents && selectedItem.links.parents.length > 0 && (
+                    {selectedItem.links?.parents && selectedItem.links.parents.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold text-muted-foreground mb-2">Parents</h4>
                         <div className="space-y-2">
                           {relatedItems
-                            .filter(item => selectedItem.links.parents?.includes(item.id))
+                            .filter(item => selectedItem.links?.parents?.includes(item.id))
                             .map(item => (
                               <Card
                                 key={item.id}
@@ -257,12 +260,12 @@ export default function BlackboardViewPage() {
                       </div>
                     )}
 
-                    {selectedItem.links.children && selectedItem.links.children.length > 0 && (
+                    {selectedItem.links?.children && selectedItem.links.children.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold text-muted-foreground mb-2">Children</h4>
                         <div className="space-y-2">
                           {relatedItems
-                            .filter(item => selectedItem.links.children?.includes(item.id))
+                            .filter(item => selectedItem.links?.children?.includes(item.id))
                             .map(item => (
                               <Card
                                 key={item.id}
@@ -286,12 +289,12 @@ export default function BlackboardViewPage() {
                       </div>
                     )}
 
-                    {selectedItem.links.related && selectedItem.links.related.length > 0 && (
+                    {selectedItem.links?.related && selectedItem.links.related.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold text-muted-foreground mb-2">Related</h4>
                         <div className="space-y-2">
                           {relatedItems
-                            .filter(item => selectedItem.links.related?.includes(item.id))
+                            .filter(item => selectedItem.links?.related?.includes(item.id))
                             .map(item => (
                               <Card
                                 key={item.id}
