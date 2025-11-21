@@ -141,7 +141,10 @@ export class RunAgentProcessor extends BaseJobProcessor {
           output.model_id,
           taskId,
           output.output,
-          output.metadata
+          {
+            ...output.metadata,
+            latency_ms: output.latency_ms, // Include latency for model evaluator
+          }
         );
 
         console.log(`[RunAgentProcessor] Created agent output ${agentOutput.id} for task ${taskId}`);
@@ -207,6 +210,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
           },
           detail: {
             content: output.output,
+            latency_ms: output.latency_ms, // Include latency for model evaluator
           },
         });
         
