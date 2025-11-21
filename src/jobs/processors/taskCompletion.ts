@@ -81,13 +81,39 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
   console.log(`[checkTaskCompletion] Task ${taskId}: allAgentsComplete=${allAgentsComplete}, current status=${task.dimensions?.status}`);
 
   if (allAgentsComplete && task.dimensions?.status !== 'completed') {
-    // Mark task as completed
-    await blackboardService.update(taskId, {
+    // Read fresh task to ensure we have current dimensions
+    const freshTask = await blackboardService.findById(taskId);
+    if (!freshTask) {
+      console.error(`[checkTaskCompletion] Task ${taskId} not found when trying to mark as completed`);
+      return false;
+    }
+    
+    console.log(`[checkTaskCompletion] Marking task ${taskId} as completed. Current dimensions: ${JSON.stringify(freshTask.dimensions)}`);
+    
+    // Mark task as completed - preserve all existing dimensions
+    const updated = await blackboardService.update(taskId, {
       dimensions: {
-        ...task.dimensions,
+        ...(freshTask.dimensions || {}),
         status: 'completed',
+        assigned_agents: assignedAgents, // Ensure assigned agents are set
+        assigned_agent: assignedAgents[0], // Keep first for backward compatibility
       },
     });
+    
+    if (updated) {
+      console.log(`[checkTaskCompletion] Successfully updated task ${taskId} to completed. New dimensions: ${JSON.stringify(updated.dimensions)}`);
+      
+      // Verify the update persisted
+      const verifyTask = await blackboardService.findById(taskId);
+      if (verifyTask) {
+        console.log(`[checkTaskCompletion] Verification - task ${taskId} status after update: ${verifyTask.dimensions?.status}`);
+        if (verifyTask.dimensions?.status !== 'completed') {
+          console.error(`[checkTaskCompletion] WARNING: Task ${taskId} status update did not persist! Expected 'completed', got '${verifyTask.dimensions?.status}'`);
+        }
+      }
+    } else {
+      console.error(`[checkTaskCompletion] Failed to update task ${taskId} to completed`);
+    }
 
     await eventsRepository.create({
       type: 'task_completed',
