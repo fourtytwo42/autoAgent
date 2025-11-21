@@ -14,6 +14,7 @@ import { WorkerPrompt } from './agents/prompts/worker.prompt';
 import { ResearchWorkerPrompt } from './agents/prompts/researchWorker.prompt';
 import { WritingWorkerPrompt } from './agents/prompts/writingWorker.prompt';
 import { AnalysisWorkerPrompt } from './agents/prompts/analysisWorker.prompt';
+import { SummarizerPrompt } from './agents/prompts/summarizer.prompt';
 
 /**
  * Initialize the application:
@@ -175,6 +176,16 @@ async function seedInitialData(): Promise<void> {
       system_prompt: AnalysisWorkerPrompt,
       modalities: ['text'],
       interests: { type: ['task'], dimensions: { task_type: 'analysis' } },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
+      id: 'Summarizer',
+      description: 'Creates concise summaries of agent outputs for the blackboard',
+      system_prompt: SummarizerPrompt,
+      modalities: ['text'],
+      interests: { type: ['agent_output'], dimensions: { status: 'completed' } },
       permissions: { can_use_tools: [], can_create_goals: false },
       is_core: true,
       is_enabled: true,

@@ -800,145 +800,319 @@ export default function BlackboardViewPage() {
     );
   }
 
-  // Main blackboard view - wiki-like interface
-  const groupedByType = items.reduce((acc, item) => {
-    if (!acc[item.type]) {
-      acc[item.type] = [];
+  // Organize items by flow: user_request → goal → tasks → agent_outputs → wespeaker
+  const organizeByFlow = () => {
+    // Get all user requests
+    const userRequests = items.filter(item => item.type === 'user_request');
+    
+    // For each user request, find its goals
+    const flowGroups: Array<{
+      userRequest: BlackboardItem;
+      goals: Array<{
+        goal: BlackboardItem;
+        tasks: BlackboardItem[];
+        outputs: BlackboardItem[];
+        wespeakerOutputs: BlackboardItem[];
+      }>;
+    }> = [];
+
+    userRequests.forEach(userRequest => {
+      // Find goals linked to this user request
+      const goalIds = userRequest.links?.children || [];
+      const goals = items.filter(item => 
+        item.type === 'goal' && goalIds.includes(item.id)
+      ).sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return aTime - bTime;
+      });
+
+      const goalGroups = goals.map(goal => {
+        // Find tasks for this goal
+        const taskIds = goal.links?.children || [];
+        const tasks = items.filter(item =>
+          item.type === 'task' && taskIds.includes(item.id)
+        ).sort((a, b) => {
+          const aNum = a.dimensions?.task_number || 999;
+          const bNum = b.dimensions?.task_number || 999;
+          return aNum - bNum;
+        });
+
+        // Find agent outputs for these tasks
+        const allTaskIds = tasks.map(t => t.id);
+        const outputs = items.filter(item =>
+          item.type === 'agent_output' &&
+          item.links?.parents &&
+          item.links.parents.some(parentId => allTaskIds.includes(parentId)) &&
+          item.dimensions?.agent_id !== 'WeSpeaker'
+        ).sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return aTime - bTime;
+        });
+
+        // Find WeSpeaker outputs for this goal
+        const wespeakerOutputs = items.filter(item =>
+          item.type === 'agent_output' &&
+          item.dimensions?.agent_id === 'WeSpeaker' &&
+          (item.links?.parents?.includes(goal.id) || item.dimensions?.goal_id === goal.id)
+        ).sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return aTime - bTime;
+        });
+
+        return { goal, tasks, outputs, wespeakerOutputs };
+      });
+
+      flowGroups.push({ userRequest, goals: goalGroups });
+    });
+
+    // Also include orphaned goals (goals without user requests)
+    const allGoalIds = flowGroups.flatMap(g => g.goals.map(gg => gg.goal.id));
+    const orphanedGoals = items.filter(item =>
+      item.type === 'goal' && !allGoalIds.includes(item.id)
+    ).map(goal => {
+      const taskIds = goal.links?.children || [];
+      const tasks = items.filter(item =>
+        item.type === 'task' && taskIds.includes(item.id)
+      );
+      const allTaskIds = tasks.map(t => t.id);
+      const outputs = items.filter(item =>
+        item.type === 'agent_output' &&
+        item.links?.parents &&
+        item.links.parents.some(parentId => allTaskIds.includes(parentId)) &&
+        item.dimensions?.agent_id !== 'WeSpeaker'
+      );
+      const wespeakerOutputs = items.filter(item =>
+        item.type === 'agent_output' &&
+        item.dimensions?.agent_id === 'WeSpeaker' &&
+        (item.links?.parents?.includes(goal.id) || item.dimensions?.goal_id === goal.id)
+      );
+      return { goal, tasks, outputs, wespeakerOutputs };
+    });
+
+    if (orphanedGoals.length > 0) {
+      flowGroups.push({
+        userRequest: { id: 'orphaned', type: 'goal', summary: 'Orphaned Goals', dimensions: {}, links: {} } as BlackboardItem,
+        goals: orphanedGoals,
+      });
     }
-    acc[item.type].push(item);
-    return acc;
-  }, {} as Record<string, BlackboardItem[]>);
+
+    return flowGroups;
+  };
+
+  const flowGroups = organizeByFlow();
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground mb-2">Blackboard</h1>
         <p className="text-muted-foreground">
-          The shared knowledge base visible to all agents. Click any item to explore its details and relationships.
+          The shared knowledge base visible to all agents. Items are organized by flow: User Request → Goal → Tasks → Agent Outputs → WeSpeaker Response.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {Object.entries(groupedByType).map(([type, typeItems]) => (
-          <Card key={type} className="overflow-hidden">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Badge className={getTypeColor(type)}>
-                    {type}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    ({typeItems.length})
-                  </span>
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-[600px] overflow-y-auto">
-              {typeItems.map((item) => (
-                <Card
-                  key={item.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors border-border"
-                  onClick={() => handleItemClick(item.id)}
-                >
-                  <CardContent className="p-3">
-                    <p className="text-sm font-medium text-foreground line-clamp-2 mb-2">
-                      {item.summary}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(item.created_at)}
+      <div className="space-y-8">
+        {flowGroups.map((group, groupIdx) => (
+          <div key={groupIdx} className="space-y-4">
+            {/* User Request */}
+            {group.userRequest.type === 'user_request' && (
+              <Card className="border-l-4 border-l-blue-500">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getTypeColor('user_request')}>User Request</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(group.userRequest.created_at)}
+                    </span>
+                  </div>
+                  <CardTitle className="mt-2">{group.userRequest.summary}</CardTitle>
+                </CardHeader>
+              </Card>
+            )}
+
+            {/* Goals and their flow */}
+            {group.goals.map((goalGroup, goalIdx) => (
+              <div key={goalIdx} className="ml-4 space-y-3 border-l-2 border-l-purple-500/30 pl-4">
+                {/* Goal */}
+                <Card className="border-l-4 border-l-purple-500">
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getTypeColor('goal')}>Goal</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(goalGroup.goal.created_at)}
+                      </span>
+                      {goalGroup.goal.dimensions?.status && (
+                        <Badge variant="outline" className="text-xs">
+                          {goalGroup.goal.dimensions.status}
+                        </Badge>
+                      )}
                     </div>
-                    {item.dimensions && Object.keys(item.dimensions).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {Object.entries(item.dimensions).slice(0, 3).map(([key, value]) => {
-                          const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
-                          const displayValue = valueStr.length > 20 ? valueStr.substring(0, 20) + '...' : valueStr;
-                          
-                          // Check if this is clickable
-                          const isClickableId = isIdKey(key) && typeof value === 'string' && isUUID(value);
-                          const isClickableAgent = key === 'agent_id' && typeof value === 'string';
-                          const isClickableModel = (key === 'model_name' || key === 'model_provider' || key === 'provider') && typeof value === 'string';
-                          const isClickableSource = key === 'source';
-                          const isClickableDeps = key === 'dependency_task_numbers' && Array.isArray(value);
-                          const isClickable = isClickableId || isClickableAgent || isClickableModel || isClickableSource || isClickableDeps;
-                          
-                          const handleClick = (e: React.MouseEvent) => {
-                            e.stopPropagation();
-                            if (isClickableAgent) {
-                              handleAgentClick(value as string);
-                            } else if (isClickableModel) {
-                              if (key === 'model_name') {
-                                handleModelClick(value as string, undefined, undefined);
-                              } else {
-                                handleModelClick(undefined, value as string, undefined);
-                              }
-                            } else if (isClickableSource) {
-                              handleSourceClick(value);
-                            } else if (isClickableDeps) {
-                              // For dependency_task_numbers, clicking will show the first dependency
-                              const deps = value as number[];
-                              if (deps.length > 0) {
-                                const goalId = item.links?.parents?.[0];
-                                handleDependencyTaskClick(deps[0], goalId);
-                              }
-                            } else if (isClickableId) {
-                              handleItemClick(value as string);
-                            }
-                          };
-                          
-                          // Special rendering for dependency_task_numbers
-                          if (isClickableDeps) {
-                            const deps = value as number[];
-                            const goalId = item.links?.parents?.[0];
-                            return (
-                              <Badge 
-                                key={key} 
-                                variant="outline" 
-                                className="text-xs cursor-pointer hover:bg-primary/10"
-                              >
-                                {key}: {deps.map((depNum, idx) => (
-                                  <button
-                                    key={idx}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await handleDependencyTaskClick(depNum, goalId);
-                                    }}
-                                    className="text-primary hover:underline font-medium cursor-pointer ml-1"
-                                  >
-                                    {depNum}{idx < deps.length - 1 ? ',' : ''}
-                                  </button>
-                                ))}
-                              </Badge>
-                            );
-                          }
-                          
-                          return (
-                            <Badge 
-                              key={key} 
-                              variant="outline" 
-                              className={`text-xs ${isClickable ? 'cursor-pointer hover:bg-primary/10' : ''}`}
-                              onClick={isClickable ? handleClick : undefined}
-                            >
-                              {key}: {isClickable ? (
-                                <span className="text-primary font-medium">{displayValue}</span>
-                              ) : (
-                                displayValue
-                              )}
-                            </Badge>
-                          );
-                        })}
-                        {Object.keys(item.dimensions).length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{Object.keys(item.dimensions).length - 3} more
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
+                    <CardTitle className="mt-2 cursor-pointer hover:text-primary" onClick={() => handleItemClick(goalGroup.goal.id)}>
+                      {goalGroup.goal.summary}
+                    </CardTitle>
+                  </CardHeader>
                 </Card>
-              ))}
-            </CardContent>
-          </Card>
+
+                {/* Tasks */}
+                {goalGroup.tasks.length > 0 && (
+                  <div className="ml-4 space-y-2 border-l-2 border-l-green-500/30 pl-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-2">Tasks ({goalGroup.tasks.length})</h4>
+                    {goalGroup.tasks.map((task) => (
+                      <Card
+                        key={task.id}
+                        className="border-l-4 border-l-green-500 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => handleItemClick(task.id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge className={getTypeColor('task')} variant="outline">Task</Badge>
+                                {task.dimensions?.task_number && (
+                                  <Badge variant="outline" className="text-xs">
+                                    #{task.dimensions.task_number}
+                                  </Badge>
+                                )}
+                                {task.dimensions?.status && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {task.dimensions.status}
+                                  </Badge>
+                                )}
+                                {task.dimensions?.priority && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {task.dimensions.priority}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium text-foreground">{task.summary}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(task.created_at)}
+                                {task.dimensions?.goal_id && (
+                                  <>
+                                    <span>•</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleItemClick(task.dimensions.goal_id);
+                                      }}
+                                      className="text-primary hover:underline"
+                                    >
+                                      Goal: {task.dimensions.goal_id.substring(0, 8)}...
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Agent Outputs */}
+                {goalGroup.outputs.length > 0 && (
+                  <div className="ml-4 space-y-2 border-l-2 border-l-yellow-500/30 pl-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-2">Agent Outputs ({goalGroup.outputs.length})</h4>
+                    {goalGroup.outputs.map((output) => (
+                      <Card
+                        key={output.id}
+                        className="border-l-4 border-l-yellow-500 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => handleItemClick(output.id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge className={getTypeColor('agent_output')} variant="outline">Output</Badge>
+                                {output.dimensions?.agent_id && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs cursor-pointer hover:bg-primary/10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAgentClick(output.dimensions.agent_id);
+                                    }}
+                                  >
+                                    {output.dimensions.agent_id}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium text-foreground">{output.summary}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(output.created_at)}
+                              </div>
+                            </div>
+                            <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* WeSpeaker Responses */}
+                {goalGroup.wespeakerOutputs.length > 0 && (
+                  <div className="ml-4 space-y-2 border-l-2 border-l-cyan-500/30 pl-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-2">WeSpeaker Response{goalGroup.wespeakerOutputs.length !== 1 ? 's' : ''} ({goalGroup.wespeakerOutputs.length})</h4>
+                    {goalGroup.wespeakerOutputs.map((output) => (
+                      <Card
+                        key={output.id}
+                        className="border-l-4 border-l-cyan-500 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => handleItemClick(output.id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge className={getTypeColor('agent_output')} variant="outline">WeSpeaker</Badge>
+                              </div>
+                              <p className="text-sm font-medium text-foreground">{output.summary}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(output.created_at)}
+                                {output.dimensions?.agent_id && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Agent: {output.dimensions.agent_id}</span>
+                                  </>
+                                )}
+                                {output.dimensions?.goal_id && (
+                                  <>
+                                    <span>•</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleItemClick(output.dimensions.goal_id);
+                                      }}
+                                      className="text-primary hover:underline"
+                                    >
+                                      Goal: {output.dimensions.goal_id.substring(0, 8)}...
+                                    </button>
+                                  </>
+                                )}
+                                {output.dimensions?.status && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Status: {output.dimensions.status}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         ))}
       </div>
 

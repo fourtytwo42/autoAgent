@@ -14,6 +14,7 @@ import { GoalRefinerAgent } from '@/src/agents/agents/goalRefiner.agent';
 import { ResearchWorkerAgent } from '@/src/agents/agents/researchWorker.agent';
 import { WritingWorkerAgent } from '@/src/agents/agents/writingWorker.agent';
 import { AnalysisWorkerAgent } from '@/src/agents/agents/analysisWorker.agent';
+import { SummarizerAgent } from '@/src/agents/agents/summarizer.agent';
 import { blackboardService } from '@/src/blackboard/service';
 import { agentMetricsRepository } from '@/src/db/repositories/agentMetrics.repository';
 import { eventsRepository } from '@/src/db/repositories/events.repository';
@@ -80,6 +81,9 @@ export class RunAgentProcessor extends BaseJobProcessor {
       case 'AnalysisWorker':
         agent = new AnalysisWorkerAgent(agentType);
         break;
+      case 'Summarizer':
+        agent = new SummarizerAgent(agentType);
+        break;
       default:
         throw new Error(`Unknown agent type: ${payload.agent_id}`);
     }
@@ -129,6 +133,30 @@ export class RunAgentProcessor extends BaseJobProcessor {
       // TaskPlanner output is saved inside handleTaskPlannerOutput, so skip the normal save below
     }
 
+    // Special handling for Summarizer - update the agent_output item with summary
+    if (payload.agent_id === 'Summarizer' && payload.context?.agent_output_id) {
+      const agentOutputId = payload.context.agent_output_id as string;
+      try {
+        const agentOutput = await blackboardService.findById(agentOutputId);
+        if (agentOutput) {
+          // Update the agent_output item with the summary
+          await blackboardService.update(agentOutputId, {
+            summary: output.output, // Use Summarizer's output as the summary
+            dimensions: {
+              ...(agentOutput.dimensions || {}),
+              summary_created: true,
+              summary_key_points: output.metadata?.key_points || [],
+            },
+          });
+          console.log(`[RunAgentProcessor] Updated agent output ${agentOutputId} with summary`);
+        }
+      } catch (error) {
+        console.error(`[RunAgentProcessor] Error updating agent output with summary:`, error);
+      }
+      // Summarizer doesn't need to save its own output, just update the existing one
+      return;
+    }
+
     // Save agent output to blackboard
     const goalId = payload.context?.goal_id;
     
@@ -148,6 +176,19 @@ export class RunAgentProcessor extends BaseJobProcessor {
         );
 
         console.log(`[RunAgentProcessor] Created agent output ${agentOutput.id} for task ${taskId}`);
+
+        // Schedule Summarizer to create a summary of this output
+        await jobQueue.createRunAgentJob(
+          'Summarizer',
+          {
+            agent_output_id: agentOutput.id,
+            agent_output: output.output,
+            task_id: taskId,
+            goal_id: goalId,
+            agent_id: output.agent_id,
+            model_id: output.model_id,
+          }
+        );
 
         // Schedule Judge to evaluate this output
         await jobQueue.createRunAgentJob(

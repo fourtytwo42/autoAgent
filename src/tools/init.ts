@@ -1,5 +1,6 @@
 import { toolRegistry } from './registry';
 import { WebSearchTool } from './webSearch.tool';
+import { BlackboardTool } from './blackboard.tool';
 import { FilesystemTool } from './filesystem.tool';
 import { env } from '@/src/config/env';
 
@@ -9,6 +10,7 @@ import { env } from '@/src/config/env';
 export function initializeTools(): void {
   // Register web search tool
   toolRegistry.register(new WebSearchTool());
+  toolRegistry.register(new BlackboardTool());
 
   // Register filesystem tool with workspace path
   const workspacePath = env.FILESYSTEM_WORKSPACE_PATH || './workspace';
