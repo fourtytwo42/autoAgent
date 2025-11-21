@@ -962,9 +962,32 @@ export default function BlackboardViewPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="mt-2 text-sm font-medium text-foreground cursor-pointer hover:text-primary" onClick={() => handleItemClick(goalGroup.goal.id)}>
-                      {goalGroup.goal.summary}
-                    </p>
+                    <div className="mt-2 prose prose-invert dark:prose-invert max-w-none prose-sm cursor-pointer hover:text-primary" onClick={() => handleItemClick(goalGroup.goal.id)}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                        components={{
+                          p: ({ children }: any) => <p className="my-1 text-foreground text-sm">{children}</p>,
+                          code: ({ inline, children }: any) => (
+                            <code className={inline ? 'bg-muted px-1.5 py-0.5 rounded text-xs' : 'block bg-muted p-2 rounded-md overflow-x-auto text-xs'}>
+                              {children}
+                            </code>
+                          ),
+                          a: ({ href, children }: any) => (
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">
+                              {children}
+                            </a>
+                          ),
+                          br: () => <br />,
+                          div: ({ children }: any) => <div className="text-sm">{children}</div>,
+                          span: ({ children }: any) => <span className="text-sm">{children}</span>,
+                          strong: ({ children }: any) => <strong className="text-sm font-semibold">{children}</strong>,
+                          em: ({ children }: any) => <em className="text-sm italic">{children}</em>,
+                        }}
+                      >
+                        {goalGroup.goal.summary}
+                      </ReactMarkdown>
+                    </div>
                   </CardHeader>
                 </Card>
 
