@@ -40,7 +40,6 @@ export class BlackboardTool extends BaseTool {
           limit: {
             type: 'number',
             description: 'Maximum number of items to return (default: 10)',
-            default: 10,
           },
         },
         required: ['query_type'],
