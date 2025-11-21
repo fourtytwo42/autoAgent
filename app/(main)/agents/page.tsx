@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ProposalView from '../../components/agents/ProposalView';
 
 interface Agent {
   id: string;
@@ -13,6 +14,8 @@ interface Agent {
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [showProposals, setShowProposals] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,10 +35,44 @@ export default function AgentsPage() {
     }
   };
 
+  const fetchProposals = async () => {
+    try {
+      const response = await fetch('/api/blackboard?type=agent_proposal');
+      const data = await response.json();
+      setProposals(data.items || []);
+    } catch (error) {
+      console.error('Error fetching proposals:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAgents();
+    fetchProposals();
+  }, []);
+
   return (
-    <div className="flex h-screen max-h-[calc(100vh-4rem)]">
-      <div className="flex-1 p-4">
-        <h1 className="text-2xl font-bold mb-4">Agents</h1>
+    <div className="flex flex-col h-screen max-h-[calc(100vh-4rem)]">
+      <div className="flex-1 p-4 overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Agents</h1>
+          <button
+            onClick={() => {
+              setShowProposals(!showProposals);
+              if (!showProposals) {
+                fetchProposals();
+              }
+            }}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            {showProposals ? 'Hide' : 'Show'} Proposals
+          </button>
+        </div>
+
+        {showProposals && (
+          <div className="mb-6">
+            <ProposalView proposals={proposals} />
+          </div>
+        )}
         {loading ? (
           <div>Loading...</div>
         ) : (

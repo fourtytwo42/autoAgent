@@ -7,6 +7,8 @@ import { JudgeAgent } from '@/src/agents/agents/judge.agent';
 import { StewardAgent } from '@/src/agents/agents/steward.agent';
 import { ModelEvaluatorAgent } from '@/src/agents/agents/modelEvaluator.agent';
 import { ConsensusAgent } from '@/src/agents/agents/consensus.agent';
+import { ArchitectureEngineerAgent } from '@/src/agents/agents/architectureEngineer.agent';
+import { MemoryCuratorAgent } from '@/src/agents/agents/memoryCurator.agent';
 import { blackboardService } from '@/src/blackboard/service';
 import { agentMetricsRepository } from '@/src/db/repositories/agentMetrics.repository';
 import { eventsRepository } from '@/src/db/repositories/events.repository';
@@ -47,6 +49,12 @@ export class RunAgentProcessor extends BaseJobProcessor {
         break;
       case 'ConsensusAgent':
         agent = new ConsensusAgent(agentType);
+        break;
+      case 'ArchitectureEngineer':
+        agent = new ArchitectureEngineerAgent(agentType);
+        break;
+      case 'MemoryCurator':
+        agent = new MemoryCuratorAgent(agentType);
         break;
       default:
         throw new Error(`Unknown agent type: ${payload.agent_id}`);

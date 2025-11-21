@@ -6,6 +6,8 @@ import { WeSpeakerPrompt } from './agents/prompts/wespeaker.prompt';
 import { TaskPlannerPrompt } from './agents/prompts/taskPlanner.prompt';
 import { JudgePrompt } from './agents/prompts/judge.prompt';
 import { StewardPrompt } from './agents/prompts/steward.prompt';
+import { ArchitectureEngineerPrompt } from './agents/prompts/architectureEngineer.prompt';
+import { MemoryCuratorPrompt } from './agents/prompts/memoryCurator.prompt';
 
 /**
  * Initialize the application:
@@ -92,6 +94,26 @@ async function seedInitialData(): Promise<void> {
       system_prompt: 'You are ModelEvaluator, responsible for evaluating the performance of LLM models used by the hive.',
       modalities: ['text'],
       interests: { type: ['judgement', 'metric'] },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
+      id: 'ArchitectureEngineer',
+      description: 'Analyzes system architecture and proposes improvements',
+      system_prompt: ArchitectureEngineerPrompt,
+      modalities: ['text'],
+      interests: { type: ['agent_proposal', 'metric'] },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
+      id: 'MemoryCurator',
+      description: 'Maintains and optimizes the knowledge base',
+      system_prompt: MemoryCuratorPrompt,
+      modalities: ['text'],
+      interests: { type: ['goal', 'task', 'agent_output'] },
       permissions: { can_use_tools: [], can_create_goals: false },
       is_core: true,
       is_enabled: true,

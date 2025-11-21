@@ -2,6 +2,7 @@ import { AgentType, AgentExecutionContext, AgentOutput } from '@/src/types/agent
 import { ModelConfig, ChatMessage } from '@/src/types/models';
 import { modelExecutor } from '@/src/models/executor';
 import { modelRouter } from '@/src/models/router';
+import { toolRegistry } from '@/src/tools/registry';
 
 export abstract class BaseAgent {
   constructor(protected agentType: AgentType) {}
@@ -58,6 +59,35 @@ export abstract class BaseAgent {
     options?: { temperature?: number; maxTokens?: number }
   ): AsyncIterable<string> {
     yield* modelExecutor.generateTextStream(model, messages, options);
+  }
+
+  protected async executeTool(
+    toolName: string,
+    parameters: Record<string, any>,
+    context: AgentExecutionContext
+  ): Promise<any> {
+    const tool = toolRegistry.get(toolName);
+    if (!tool) {
+      throw new Error(`Tool ${toolName} not found`);
+    }
+
+    // Check if agent has permission to use this tool
+    const allowedTools = this.agentType.permissions?.can_use_tools || [];
+    if (!allowedTools.includes(toolName)) {
+      throw new Error(`Agent ${this.agentType.id} does not have permission to use tool ${toolName}`);
+    }
+
+    const result = await tool.execute(parameters, {
+      agent_id: this.agentType.id,
+      task_id: context.input.task_id as string,
+      metadata: context.input,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'Tool execution failed');
+    }
+
+    return result.output;
   }
 }
 
