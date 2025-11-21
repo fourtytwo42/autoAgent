@@ -236,7 +236,81 @@ export class RunAgentProcessor extends BaseJobProcessor {
       }
     };
 
-    tryParseJsonTasks();
+    const jsonResult = tryParseJsonTasks();
+    
+    if (jsonResult && Array.isArray(jsonResult.tasks)) {
+      // Process JSON tasks
+      console.log(`[TaskPlanner] Processing ${jsonResult.tasks.length} tasks from JSON`);
+      for (const rawTask of jsonResult.tasks) {
+        if (!rawTask) {
+          console.log(`[TaskPlanner] Skipping null/undefined task`);
+          continue;
+        }
+        const summary = (rawTask.summary || rawTask.description || rawTask.title || '').trim();
+        if (summary.length < 10) {
+          console.log(`[TaskPlanner] Skipping task with summary too short: "${summary}"`);
+          continue;
+        }
+        
+        // Filter out explanation text, task group descriptions, and non-actionable fragments
+        const summaryLower = summary.toLowerCase();
+        let skipReason = '';
+        if (summaryLower.startsWith('priority') || summaryLower.startsWith('high-priority') || summaryLower.startsWith('medium-priority') || summaryLower.startsWith('low-priority')) {
+          skipReason = 'priority description';
+        } else if (summaryLower.includes('must be completed before') || summaryLower.includes('are preparatory') || summaryLower.includes('can run in parallel') || summaryLower.includes('focuses on') || summaryLower.includes('these tasks can')) {
+          skipReason = 'task group description';
+        } else if (summaryLower.startsWith('task ') && (summaryLower.includes('are') || summaryLower.includes('must') || summaryLower.includes('requires') || summaryLower.includes('depends'))) {
+          skipReason = 'task dependency description';
+        } else if (summaryLower.includes('notes on') || summaryLower.includes('suggested agents') || summaryLower.includes('suggested agent') || summaryLower.includes('example of')) {
+          skipReason = 'explanatory text';
+        } else if (summaryLower.includes('rationale') || summaryLower.includes('can be deferred') || summaryLower.includes('can run concurrently') || summaryLower.includes('final checks') || summaryLower.includes('parallel tasks') || summaryLower.includes('enhance quality') || summaryLower.includes('essential for') || summaryLower.includes('must finish') || summaryLower.includes('requires completion') || summaryLower.includes('relies on') || summaryLower.includes('depends on') || summaryLower.includes('should align') || summaryLower.includes('requires completion of')) {
+          skipReason = 'explanation text';
+        } else if (summaryLower.match(/^[a-z\s]+:$/) || summaryLower.match(/^(data sources|automation tips|user interaction|implementation|notes|tips|sources):/i)) {
+          skipReason = 'section header';
+        } else if (summaryLower.includes('workflow orchestrator') || summaryLower.includes('cache results for') || summaryLower.includes('api for')) {
+          skipReason = 'implementation note';
+        } else if (summaryLower.match(/^(tripadvisor|yelp|google|booking\.com|expedia|hotels\.com|weedmaps|leafly|noaa|accuweather)/i)) {
+          skipReason = 'data source list';
+        } else if (summaryLower.match(/^tasks?\s*\d+/)) {
+          skipReason = 'task reference';
+        } else if (summary.length < 20) {
+          skipReason = `too short (${summary.length} chars)`;
+        } else if (!summaryLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|generate|compile|assemble|draft|identify|recommend|provide|list|outline|search|book|reserve|schedule|send|organize|use|compile|estimate|verify|select|format|proofread|deliver)\b/i)) {
+          skipReason = 'no action verb';
+        }
+        
+        if (skipReason) {
+          console.log(`[TaskPlanner] Skipping invalid task from JSON: "${summary.substring(0, 60)}..." - reason: ${skipReason}`);
+          continue;
+        }
+
+        const priorityLower = (rawTask.priority || '').toString().toLowerCase();
+        let taskPriority: 'high' | 'medium' | 'low' = 'medium';
+        if (priorityLower.includes('high')) taskPriority = 'high';
+        else if (priorityLower.includes('low')) taskPriority = 'low';
+
+        let agentCount = parseInt(rawTask.agent_count, 10);
+        if (Number.isNaN(agentCount)) agentCount = 1;
+        agentCount = Math.min(Math.max(agentCount, 1), 5);
+
+        let cleanTaskType = (rawTask.task_type || 'general').toString().toLowerCase().trim();
+        if (!cleanTaskType) cleanTaskType = 'general';
+
+        const dependencies = Array.isArray(rawTask.dependencies)
+          ? rawTask.dependencies
+              .map((dep: any) => parseInt(dep, 10))
+              .filter((dep: number) => Number.isInteger(dep) && dep > 0)
+          : [];
+
+        tasks.push({
+          summary: summary.substring(0, 500),
+          priority: taskPriority,
+          agent_count: agentCount,
+          task_type: cleanTaskType,
+          dependencies,
+        });
+      }
+    }
     
     console.log(`[TaskPlanner] After JSON parsing: ${tasks.length} tasks found`);
     
