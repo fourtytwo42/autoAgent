@@ -5,7 +5,7 @@ module.exports = {
     {
       name: 'autoagent',
       script: 'node_modules/next/dist/bin/next',
-      args: 'start',
+      args: 'dev',
       cwd: '/home/hendo420/autoAgent',
       instances: 1,
       exec_mode: 'fork',

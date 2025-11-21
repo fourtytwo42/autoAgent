@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useBlackboardUpdates } from '../../hooks/useBlackboardUpdates';
-import { Card, Input, Select, SelectItem, Chip } from '@heroui/react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Button from '../../components/ui/Button';
 
 interface BlackboardItem {
   id: string;
@@ -57,7 +61,7 @@ export default function BlackboardPage() {
 
   // Filter items client-side
   const filteredItems = items.filter((item) => {
-    if (filters.type && item.type !== filters.type) return false;
+    if (filters.type && filters.type !== 'all' && item.type !== filters.type) return false;
     if (filters.search && !item.summary.toLowerCase().includes(filters.search.toLowerCase())) {
       return false;
     }
@@ -65,165 +69,121 @@ export default function BlackboardPage() {
   });
 
   return (
-    <div style={{
-      display: 'flex',
-      height: 'calc(100vh - 4rem)',
-      maxHeight: 'calc(100vh - 4rem)',
-    }}>
+    <div className="flex h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
       {/* Filters */}
-      <Card style={{
-        width: '256px',
-        padding: '24px',
-        borderRight: '1px solid #3f3f46',
-        borderRadius: 0,
-        backgroundColor: '#18181b',
-      }}>
-        <h2 style={{
-          fontWeight: 'bold',
-          marginBottom: '24px',
-          color: 'white',
-          fontSize: '18px',
-        }}>Filters</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <Card className="w-64 p-6 border-r rounded-none bg-card">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="font-bold text-foreground text-lg">Filters</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const typeToClear = filters.type && filters.type !== 'all' ? filters.type : null;
+              const confirmMsg = typeToClear 
+                ? `Are you sure you want to clear all ${typeToClear} items?`
+                : 'Are you sure you want to clear ALL blackboard items?';
+              
+              if (confirm(confirmMsg)) {
+                try {
+                  const response = await fetch('/api/blackboard/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(typeToClear ? { type: typeToClear } : {}),
+                  });
+                  if (response.ok) {
+                    const data = await response.json();
+                    alert(`Cleared ${data.deletedCount} items`);
+                    fetchItems();
+                  } else {
+                    alert('Failed to clear items');
+                  }
+                } catch (error) {
+                  console.error('Error clearing items:', error);
+                  alert('Failed to clear items');
+                }
+              }
+            }}
+          >
+            Clear {filters.type && filters.type !== 'all' ? filters.type : 'All'}
+          </Button>
+        </div>
+        <div className="flex flex-col gap-4">
           <div>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#d4d4d8',
-              marginBottom: '4px',
-            }}>Type</label>
+            <Label htmlFor="type-filter" className="mb-1">Type</Label>
             <Select
-              selectedKeys={filters.type ? [filters.type] : []}
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] as string || '';
-                setFilters({ ...filters, type: value });
-              }}
-              placeholder="All Types"
-              variant="bordered"
-              size="sm"
+              value={filters.type || 'all'}
+              onValueChange={(value) => setFilters({ ...filters, type: value === 'all' ? '' : value })}
             >
-              <SelectItem key="user_request">User Request</SelectItem>
-              <SelectItem key="goal">Goal</SelectItem>
-              <SelectItem key="task">Task</SelectItem>
-              <SelectItem key="agent_output">Agent Output</SelectItem>
-              <SelectItem key="judgement">Judgement</SelectItem>
+              <SelectTrigger id="type-filter" className="h-9">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="user_request">User Request</SelectItem>
+                <SelectItem value="goal">Goal</SelectItem>
+                <SelectItem value="task">Task</SelectItem>
+                <SelectItem value="agent_output">Agent Output</SelectItem>
+                <SelectItem value="judgement">Judgement</SelectItem>
+              </SelectContent>
             </Select>
           </div>
           <div>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#d4d4d8',
-              marginBottom: '4px',
-            }}>Search</label>
+            <Label htmlFor="search-filter" className="mb-1">Search</Label>
             <Input
+              id="search-filter"
               type="text"
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               placeholder="Search..."
-              variant="bordered"
-              size="sm"
+              className="h-9"
             />
           </div>
         </div>
       </Card>
 
       {/* Item List */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '24px',
-      }}>
-        <div style={{ marginBottom: '24px' }}>
-          <h1 style={{
-            fontSize: '30px',
-            fontWeight: 'bold',
-            color: 'white',
-            marginBottom: '8px',
-          }}>Blackboard Explorer</h1>
-          <div style={{
-            marginBottom: '16px',
-            fontSize: '14px',
-            color: '#a1a1aa',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            <span style={{
-              display: 'inline-block',
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: isConnected ? '#22c55e' : '#ef4444',
-              animation: isConnected ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
-            }}></span>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Blackboard Explorer</h1>
+          <div className="mb-4 text-sm text-muted-foreground flex items-center gap-2">
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+              }`}
+            />
             <span>{isConnected ? 'Live updates' : 'Disconnected'}</span>
             <span>|</span>
             <span>{filteredItems.length} items</span>
           </div>
         </div>
         {loading ? (
-          <div style={{ color: '#a1a1aa' }}>Loading...</div>
+          <div className="text-muted-foreground">Loading...</div>
         ) : filteredItems.length === 0 ? (
-          <div style={{ color: '#a1a1aa' }}>No items found</div>
+          <div className="text-muted-foreground">No items found</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="flex flex-col gap-3">
             {filteredItems.map((item) => (
               <Card
                 key={item.id}
-                isPressable
-                onPress={() => setSelectedItem(item)}
-                style={{
-                  padding: '20px',
-                  border: selectedItem?.id === item.id ? '2px solid #3b82f6' : '1px solid #3f3f46',
-                  backgroundColor: selectedItem?.id === item.id ? '#27272a' : '#18181b',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedItem?.id !== item.id) {
-                    e.currentTarget.style.borderColor = '#52525b';
-                    e.currentTarget.style.backgroundColor = '#27272a';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedItem?.id !== item.id) {
-                    e.currentTarget.style.borderColor = '#3f3f46';
-                    e.currentTarget.style.backgroundColor = '#18181b';
-                  }
-                }}
+                className={`cursor-pointer transition-all ${
+                  selectedItem?.id === item.id
+                    ? 'border-primary border-2 bg-muted'
+                    : 'border-border hover:border-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => setSelectedItem(item)}
               >
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  marginBottom: '8px',
-                }}>
-                  <div style={{
-                    fontWeight: '600',
-                    color: 'white',
-                    fontSize: '18px',
-                  }}>{item.type}</div>
-                  <span style={{
-                    fontSize: '12px',
-                    color: '#71717a',
-                  }}>
-                    {new Date(item.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                <div style={{
-                  fontSize: '14px',
-                  color: '#d4d4d8',
-                  marginBottom: '8px',
-                }}>{item.summary}</div>
-                <div style={{
-                  fontSize: '12px',
-                  color: '#71717a',
-                }}>
-                  {new Date(item.created_at).toLocaleTimeString()}
-                </div>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="font-semibold text-foreground text-lg">{item.type}</div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-2">{item.summary}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(item.created_at).toLocaleTimeString()}
+                  </div>
+                </CardContent>
               </Card>
             ))}
           </div>
@@ -232,92 +192,34 @@ export default function BlackboardPage() {
 
       {/* Detail Panel */}
       {selectedItem && (
-        <Card style={{
-          width: '384px',
-          padding: '24px',
-          borderLeft: '1px solid #3f3f46',
-          borderRadius: 0,
-          backgroundColor: '#18181b',
-          overflowY: 'auto',
-        }}>
-          <h2 style={{
-            fontSize: '20px',
-            fontWeight: 'bold',
-            marginBottom: '24px',
-            color: 'white',
-          }}>Details</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <Card className="w-96 p-6 border-l rounded-none bg-card overflow-y-auto">
+          <h2 className="text-xl font-bold mb-6 text-foreground">Details</h2>
+          <div className="flex flex-col gap-6">
             <div>
-              <div style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#a1a1aa',
-                marginBottom: '8px',
-              }}>Type</div>
-              <div style={{
-                color: '#e4e4e7',
-                fontWeight: '500',
-              }}>{selectedItem.type}</div>
+              <div className="text-sm font-medium text-muted-foreground mb-2">Type</div>
+              <div className="text-foreground font-medium">{selectedItem.type}</div>
             </div>
             <div>
-              <div style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#a1a1aa',
-                marginBottom: '8px',
-              }}>Summary</div>
-              <div style={{ color: '#e4e4e7' }}>{selectedItem.summary}</div>
+              <div className="text-sm font-medium text-muted-foreground mb-2">Summary</div>
+              <div className="text-foreground">{selectedItem.summary}</div>
             </div>
             <div>
-              <div style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#a1a1aa',
-                marginBottom: '8px',
-              }}>Dimensions</div>
-              <pre style={{
-                fontSize: '12px',
-                backgroundColor: '#0a0a0a',
-                padding: '16px',
-                borderRadius: '8px',
-                overflow: 'auto',
-                color: '#d4d4d8',
-                border: '1px solid #3f3f46',
-                margin: 0,
-              }}>
+              <div className="text-sm font-medium text-muted-foreground mb-2">Dimensions</div>
+              <pre className="text-xs bg-background p-4 rounded-lg overflow-auto text-muted-foreground border border-border m-0">
                 {JSON.stringify(selectedItem.dimensions, null, 2)}
               </pre>
             </div>
             {selectedItem.detail && (
               <div>
-                <div style={{
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#a1a1aa',
-                  marginBottom: '8px',
-                }}>Detail</div>
-                <pre style={{
-                  fontSize: '12px',
-                  backgroundColor: '#0a0a0a',
-                  padding: '16px',
-                  borderRadius: '8px',
-                  overflow: 'auto',
-                  color: '#d4d4d8',
-                  border: '1px solid #3f3f46',
-                  margin: 0,
-                }}>
+                <div className="text-sm font-medium text-muted-foreground mb-2">Detail</div>
+                <pre className="text-xs bg-background p-4 rounded-lg overflow-auto text-muted-foreground border border-border m-0">
                   {JSON.stringify(selectedItem.detail, null, 2)}
                 </pre>
               </div>
             )}
             <div>
-              <div style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#a1a1aa',
-                marginBottom: '8px',
-              }}>Created</div>
-              <div style={{ color: '#e4e4e7' }}>
+              <div className="text-sm font-medium text-muted-foreground mb-2">Created</div>
+              <div className="text-foreground">
                 {new Date(selectedItem.created_at).toLocaleString()}
               </div>
             </div>

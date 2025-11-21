@@ -10,10 +10,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { provider: string } }
+  { params }: { params: Promise<{ provider: string }> }
 ) {
   try {
-    const providerType = params.provider as ProviderType;
+    const resolvedParams = await params;
+    const providerType = resolvedParams.provider as ProviderType;
+    
+    console.log(`[Models API] Fetching models for provider: ${providerType}`);
+    
     let provider;
 
     switch (providerType) {
@@ -33,6 +37,7 @@ export async function GET(
         provider = new LMStudioProvider();
         break;
       default:
+        console.error(`[Models API] Unknown provider: ${providerType}`);
         return NextResponse.json(
           { error: 'Unknown provider', models: [] },
           { status: 400 }
@@ -40,16 +45,24 @@ export async function GET(
     }
 
     if (!provider.listModels) {
+      console.error(`[Models API] Provider ${providerType} does not support listModels`);
       return NextResponse.json(
         { error: 'Provider does not support model listing', models: [] },
         { status: 501 }
       );
     }
 
+    console.log(`[Models API] Calling listModels() for ${providerType}`);
     const models = await provider.listModels();
+    console.log(`[Models API] Retrieved ${models.length} models from ${providerType}`);
+    
     return NextResponse.json({ models, count: models.length });
   } catch (error) {
-    console.error('Error fetching provider models:', error);
+    console.error('[Models API] Error fetching provider models:', error);
+    if (error instanceof Error) {
+      console.error('[Models API] Error stack:', error.stack);
+      console.error('[Models API] Error message:', error.message);
+    }
     return NextResponse.json(
       {
         error: 'Internal server error',

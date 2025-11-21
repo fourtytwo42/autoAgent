@@ -4,6 +4,8 @@ import { BaseJobProcessor } from './processors/base.processor';
 import { RunAgentProcessor } from './processors/runAgent.processor';
 import { env } from '@/src/config/env';
 import { randomUUID } from 'crypto';
+import { taskManager } from '@/src/orchestrator/taskManager';
+import { cleanupStuckJobs } from './processors/taskCleanup';
 
 export class JobScheduler {
   private processors: Map<JobType, BaseJobProcessor> = new Map();
@@ -32,11 +34,27 @@ export class JobScheduler {
 
     // Process immediately
     this.processJobs();
+    this.processPendingTasks();
 
     // Then process at interval
     this.intervalId = setInterval(() => {
       this.processJobs();
+      this.processPendingTasks();
     }, intervalMs);
+  }
+
+  private async processPendingTasks(): Promise<void> {
+    try {
+      const pendingTasks = await taskManager.getPendingTasks();
+      
+      // Process up to 5 pending tasks per cycle
+      for (const task of pendingTasks.slice(0, 5)) {
+        // Try to assign an agent to the task
+        await taskManager.assignAgentToTask(task.id);
+      }
+    } catch (error) {
+      console.error('Error processing pending tasks:', error);
+    }
   }
 
   stop(): void {

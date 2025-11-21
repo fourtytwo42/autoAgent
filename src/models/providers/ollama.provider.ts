@@ -150,27 +150,44 @@ export class OllamaProvider extends BaseProvider implements IModelProvider {
       const response = await this.withTimeout(
         fetch(`${this.baseUrl}/api/tags`, {
           method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }),
         this.timeout
       );
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`Ollama API error (${response.status}):`, errorText);
         return [];
       }
 
       const data = await response.json();
-      return (data.models || []).map((model: any) => ({
-        id: model.name,
-        name: model.name,
-        display_name: model.name,
+      
+      // Ollama returns { models: [...] } directly
+      const models = data.models || [];
+      
+      if (!Array.isArray(models)) {
+        console.error('Ollama API returned invalid response structure:', data);
+        return [];
+      }
+
+      return models.map((model: any) => ({
+        id: model.name || model.id,
+        name: model.name || model.id,
+        display_name: model.name || model.id,
         modalities: ['text'],
-        context_window: undefined,
+        context_window: model.size ? undefined : undefined, // Ollama doesn't provide context window in tags
         supports_streaming: true,
         supports_vision: false,
         supports_image_gen: false,
       }));
     } catch (error) {
       console.error('Error fetching Ollama models:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
       return [];
     }
   }

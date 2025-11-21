@@ -1,11 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Disable static optimization for API routes that need runtime config
-  serverRuntimeConfig: {
-    // Add any server-only runtime config here
+  // Skip static optimization during build
+  generateBuildId: async () => {
+    return 'build-' + Date.now();
   },
 };
 
 module.exports = nextConfig;
-

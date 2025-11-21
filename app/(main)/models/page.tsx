@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Card, Chip, Progress } from '@heroui/react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 interface Model {
   id: string;
@@ -37,121 +40,85 @@ export default function ModelsPage() {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{
-          fontSize: '30px',
-          fontWeight: 'bold',
-          color: 'white',
-          marginBottom: '8px',
-        }}>Model Dashboard</h1>
-        <p style={{ color: '#a1a1aa' }}>View and manage all registered models</p>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-foreground mb-2">Model Dashboard</h1>
+        <p className="text-muted-foreground">View and manage all registered models</p>
       </div>
       {loading ? (
-        <div style={{
-          color: '#a1a1aa',
-          textAlign: 'center',
-          padding: '48px 0',
-        }}>Loading models...</div>
+        <div className="text-muted-foreground text-center py-12">Loading models...</div>
       ) : (
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <Table aria-label="Models table">
-            <TableHeader>
-              <TableColumn>Name</TableColumn>
-              <TableColumn>Provider</TableColumn>
-              <TableColumn>Enabled</TableColumn>
-              <TableColumn>Modalities</TableColumn>
-              <TableColumn>Quality</TableColumn>
-              <TableColumn>Reliability</TableColumn>
-              <TableColumn>Latency (ms)</TableColumn>
-              <TableColumn>Cost/1k</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {models.map((model) => (
-                <TableRow key={model.id}>
-                  <TableCell>
-                    <span style={{
-                      fontWeight: '500',
-                      color: '#e4e4e7',
-                    }}>{model.name}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="sm" variant="flat" color="default">
-                      {model.provider}
-                    </Chip>
-                  </TableCell>
-                  <TableCell>
-                    {model.is_enabled ? (
-                      <Chip color="success" size="sm" variant="flat">✓ Enabled</Chip>
-                    ) : (
-                      <Chip size="sm" variant="flat">Disabled</Chip>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {model.modalities.map((mod) => (
-                        <Chip key={mod} size="sm" variant="flat" color="default">
-                          {mod}
-                        </Chip>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      minWidth: '100px',
-                    }}>
-                      <Progress
-                        value={(model.quality_score || 0) * 100}
-                        color="primary"
-                        size="sm"
-                        style={{ flex: 1, maxWidth: '60px' }}
-                      />
-                      <span style={{
-                        fontSize: '14px',
-                        color: '#e4e4e7',
-                      }}>{(model.quality_score * 100).toFixed(0)}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      minWidth: '100px',
-                    }}>
-                      <Progress
-                        value={(model.reliability_score || 0) * 100}
-                        color="success"
-                        size="sm"
-                        style={{ flex: 1, maxWidth: '60px' }}
-                      />
-                      <span style={{
-                        fontSize: '14px',
-                        color: '#e4e4e7',
-                      }}>{(model.reliability_score * 100).toFixed(0)}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell style={{ color: '#e4e4e7' }}>
-                    {model.avg_latency_ms ? (
-                      <span>{model.avg_latency_ms.toLocaleString()}ms</span>
-                    ) : (
-                      <span style={{ color: '#71717a' }}>N/A</span>
-                    )}
-                  </TableCell>
-                  <TableCell style={{ color: '#e4e4e7' }}>
-                    {model.cost_per_1k_tokens ? (
-                      <span>${model.cost_per_1k_tokens.toFixed(4)}</span>
-                    ) : (
-                      <span style={{ color: '#71717a' }}>N/A</span>
-                    )}
-                  </TableCell>
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Enabled</TableHead>
+                  <TableHead>Modalities</TableHead>
+                  <TableHead>Quality</TableHead>
+                  <TableHead>Reliability</TableHead>
+                  <TableHead>Latency (ms)</TableHead>
+                  <TableHead>Cost/1k</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {models.map((model) => (
+                  <TableRow key={model.id}>
+                    <TableCell>
+                      <span className="font-medium text-foreground">{model.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{model.provider}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {model.is_enabled ? (
+                        <Badge variant="default" className="bg-green-600">✓ Enabled</Badge>
+                      ) : (
+                        <Badge variant="outline">Disabled</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2 flex-wrap">
+                        {model.modalities.map((mod) => (
+                          <Badge key={mod} variant="outline">
+                            {mod}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 min-w-[100px]">
+                        <Progress value={(model.quality_score || 0) * 100} className="flex-1 max-w-[60px]" />
+                        <span className="text-sm text-foreground">{(model.quality_score * 100).toFixed(0)}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 min-w-[100px]">
+                        <Progress value={(model.reliability_score || 0) * 100} className="flex-1 max-w-[60px]" />
+                        <span className="text-sm text-foreground">{(model.reliability_score * 100).toFixed(0)}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-foreground">
+                      {model.avg_latency_ms ? (
+                        <span>{model.avg_latency_ms.toLocaleString()}ms</span>
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-foreground">
+                      {model.cost_per_1k_tokens ? (
+                        <span>${model.cost_per_1k_tokens.toFixed(4)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
         </Card>
       )}
     </div>

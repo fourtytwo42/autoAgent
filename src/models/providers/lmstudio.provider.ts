@@ -144,19 +144,33 @@ export class LMStudioProvider extends BaseProvider implements IModelProvider {
       const response = await this.withTimeout(
         fetch(`${this.baseUrl}/v1/models`, {
           method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }),
         this.timeout
       );
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`LM Studio API error (${response.status}):`, errorText);
         return [];
       }
 
       const data = await response.json();
-      return (data.data || []).map((model: any) => ({
-        id: model.id,
-        name: model.id,
-        display_name: model.id,
+      
+      // LM Studio uses OpenAI-compatible format: { data: [...] }
+      const models = data.data || [];
+      
+      if (!Array.isArray(models)) {
+        console.error('LM Studio API returned invalid response structure:', data);
+        return [];
+      }
+
+      return models.map((model: any) => ({
+        id: model.id || model.name,
+        name: model.id || model.name,
+        display_name: model.id || model.name,
         modalities: ['text'],
         context_window: undefined,
         supports_streaming: true,
@@ -165,6 +179,13 @@ export class LMStudioProvider extends BaseProvider implements IModelProvider {
       }));
     } catch (error) {
       console.error('Error fetching LM Studio models:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+        // Network errors are common with remote LM Studio instances
+        if (error.message.includes('fetch') || error.message.includes('network')) {
+          console.error('Network error - check if LM Studio is running and accessible at:', this.baseUrl);
+        }
+      }
       return [];
     }
   }

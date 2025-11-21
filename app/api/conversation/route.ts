@@ -1,7 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { orchestrator } from '@/src/orchestrator/orchestrator';
+import { blackboardService } from '@/src/blackboard/service';
 
 export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+  try {
+    // Fetch conversation history from blackboard
+    // Get user requests and agent outputs, ordered by creation time
+    const userRequests = await blackboardService.query({
+      type: 'user_request',
+      order_by: 'created_at',
+      order_direction: 'asc',
+      limit: 100,
+    });
+
+    // Only get WeSpeaker agent outputs for conversation (not TaskPlanner, Judge, etc.)
+    const agentOutputs = await blackboardService.query({
+      type: 'agent_output',
+      dimensions: {
+        agent_id: 'WeSpeaker',
+      },
+      order_by: 'created_at',
+      order_direction: 'asc',
+      limit: 100,
+    });
+
+    // Combine and sort all messages by timestamp
+    const allItems = [...userRequests, ...agentOutputs].sort(
+      (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+
+    // Convert to message format
+    const messages = allItems.map((item) => {
+      let content = item.summary || '';
+      
+      // For agent outputs, get the actual content from detail.content
+      if (item.type === 'agent_output' && item.detail && typeof item.detail === 'object') {
+        const detail = item.detail as any;
+        if (detail.content && typeof detail.content === 'string') {
+          content = detail.content;
+        }
+      }
+      
+      return {
+        id: item.id,
+        role: item.type === 'user_request' ? 'user' : 'assistant',
+        content: content,
+        timestamp: new Date(item.created_at || Date.now()),
+      };
+    });
+
+    return NextResponse.json({ messages });
+  } catch (error) {
+    console.error('Error fetching conversation history:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error', messages: [] },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,12 +73,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = await orchestrator.handleUserRequest({
-      message,
-      metadata,
+    // Use streaming for better UX
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // First, give an informal response that work is starting
+          const informalResponses = [
+            "Give me a minute and I'll get back to you on that",
+            "Let me work on that for you",
+            "I'm looking into that now",
+            "Hang tight, I'm gathering some info",
+            "Just a sec, let me check on that",
+            "Working on it, I'll be right back",
+            "Let me handle that for you",
+            "I'm on it, give me a moment",
+          ];
+          const randomResponse = informalResponses[Math.floor(Math.random() * informalResponses.length)];
+          
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'status', message: randomResponse })}\n\n`));
+
+          // Process the request
+          const response = await orchestrator.handleUserRequest({
+            message,
+            metadata,
+          });
+
+          // Send the final response
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'response', ...response })}\n\n`));
+          controller.close();
+        } catch (error) {
+          console.error('Error in conversation stream:', error);
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
+          controller.close();
+        }
+      },
     });
 
-    return NextResponse.json(response);
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
   } catch (error) {
     console.error('Error in conversation API:', error);
     return NextResponse.json(

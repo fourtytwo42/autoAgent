@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import '@/src/startup/autoStart';
 import { healthChecker } from '@/src/health/checker';
 
 export const dynamic = 'force-dynamic';

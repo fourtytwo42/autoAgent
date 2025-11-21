@@ -9,6 +9,10 @@ import { JudgePrompt } from './agents/prompts/judge.prompt';
 import { StewardPrompt } from './agents/prompts/steward.prompt';
 import { ArchitectureEngineerPrompt } from './agents/prompts/architectureEngineer.prompt';
 import { MemoryCuratorPrompt } from './agents/prompts/memoryCurator.prompt';
+import { GoalRefinerPrompt } from './agents/prompts/goalRefiner.prompt';
+import { ResearchWorkerPrompt } from './agents/prompts/researchWorker.prompt';
+import { WritingWorkerPrompt } from './agents/prompts/writingWorker.prompt';
+import { AnalysisWorkerPrompt } from './agents/prompts/analysisWorker.prompt';
 
 /**
  * Initialize the application:
@@ -55,11 +59,21 @@ async function seedInitialData(): Promise<void> {
   // Create core agents if they don't exist
   const agents = [
     {
+      id: 'GoalRefiner',
+      description: 'Refines user requests into well-defined goals',
+      system_prompt: GoalRefinerPrompt,
+      modalities: ['text'],
+      interests: { type: ['user_request'] },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
       id: 'WeSpeaker',
       description: 'User-facing conversational agent',
       system_prompt: WeSpeakerPrompt,
       modalities: ['text'],
-      interests: { type: ['user_request'] },
+      interests: { type: ['user_request', 'task'] },
       permissions: { can_use_tools: ['web_search'], can_create_goals: true },
       is_core: true,
       is_enabled: true,
@@ -124,6 +138,46 @@ async function seedInitialData(): Promise<void> {
       is_core: true,
       is_enabled: true,
     },
+    {
+      id: 'Worker',
+      description: 'General-purpose task execution agent',
+      system_prompt: WorkerPrompt,
+      modalities: ['text'],
+      interests: { type: ['task'] },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
+      id: 'ResearchWorker',
+      description: 'Specialized agent for research and information gathering tasks',
+      system_prompt: ResearchWorkerPrompt,
+      modalities: ['text'],
+      interests: { type: ['task'], dimensions: { task_type: 'research' } },
+      permissions: { can_use_tools: ['web_search'], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
+      id: 'WritingWorker',
+      description: 'Specialized agent for writing tasks',
+      system_prompt: WritingWorkerPrompt,
+      modalities: ['text'],
+      interests: { type: ['task'], dimensions: { task_type: 'writing' } },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
+    {
+      id: 'AnalysisWorker',
+      description: 'Specialized agent for analysis tasks',
+      system_prompt: AnalysisWorkerPrompt,
+      modalities: ['text'],
+      interests: { type: ['task'], dimensions: { task_type: 'analysis' } },
+      permissions: { can_use_tools: [], can_create_goals: false },
+      is_core: true,
+      is_enabled: true,
+    },
   ];
 
   for (const agentSpec of agents) {
@@ -131,6 +185,13 @@ async function seedInitialData(): Promise<void> {
     if (!existing) {
       await agentTypesRepository.create(agentSpec);
       console.log(`✅ Created ${agentSpec.id} agent`);
+    } else {
+      // Update existing agent to ensure interests are current
+      await agentTypesRepository.update(agentSpec.id, {
+        interests: agentSpec.interests,
+        description: agentSpec.description,
+        system_prompt: agentSpec.system_prompt,
+      });
     }
   }
 }
