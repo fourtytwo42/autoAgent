@@ -22,13 +22,14 @@ export default function Button({
   children,
   type,
   disabled,
+  isDisabled,
   onClick,
   className = '',
   ...props
 }: ButtonProps) {
   const heroColor = color || (variant === 'primary' ? 'primary' : variant === 'danger' ? 'danger' : 'default');
   
-  const heroProps: HeroButtonProps = {
+  const heroProps: any = {
     color: heroColor,
     size: size,
     variant: variant === 'ghost' ? 'light' : variant === 'secondary' ? 'bordered' : 'solid',
