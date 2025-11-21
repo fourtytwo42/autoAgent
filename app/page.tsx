@@ -469,6 +469,16 @@ export default function ConversationPage() {
                         p: ({ children }: any) => <p className="my-2 text-foreground">{children}</p>,
                         // Style horizontal rules
                         hr: () => <hr className="my-4 border-border" />,
+                        // Support HTML elements
+                        br: () => <br />,
+                        div: ({ children, className, ...props }: any) => (
+                          <div className={className} {...props}>{children}</div>
+                        ),
+                        span: ({ children, className, ...props }: any) => (
+                          <span className={className} {...props}>{children}</span>
+                        ),
+                        strong: ({ children }: any) => <strong className="font-bold text-foreground">{children}</strong>,
+                        em: ({ children }: any) => <em className="italic text-foreground">{children}</em>,
                         // Style tables
                         table: ({ children }: any) => (
                           <div className="overflow-x-auto my-4">
@@ -565,6 +575,16 @@ export default function ConversationPage() {
                             {children}
                           </blockquote>
                         ),
+                        // Support HTML elements
+                        br: () => <br />,
+                        div: ({ children, className, ...props }: any) => (
+                          <div className={className} {...props}>{children}</div>
+                        ),
+                        span: ({ children, className, ...props }: any) => (
+                          <span className={className} {...props}>{children}</span>
+                        ),
+                        strong: ({ children }: any) => <strong className="font-bold text-foreground">{children}</strong>,
+                        em: ({ children }: any) => <em className="italic text-foreground">{children}</em>,
                       }}
                     >
                       {streamingMessage}
