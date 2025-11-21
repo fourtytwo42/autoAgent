@@ -172,7 +172,8 @@ export class TaskManager {
     }
 
     // Update task with assigned agents
-    await blackboardService.update(taskId, {
+    console.log(`[TaskManager] Updating task ${taskId} with assigned agents: ${assignedAgentIds.join(', ')}`);
+    const updated = await blackboardService.update(taskId, {
       dimensions: {
         ...task.dimensions,
         assigned_agents: assignedAgentIds,
@@ -181,6 +182,12 @@ export class TaskManager {
         agent_count: agentsToAssign.length,
       },
     });
+    
+    if (updated) {
+      console.log(`[TaskManager] Successfully updated task ${taskId} with status: assigned, agents: ${assignedAgentIds.join(', ')}`);
+    } else {
+      console.error(`[TaskManager] Failed to update task ${taskId}`);
+    }
 
     return true;
   }

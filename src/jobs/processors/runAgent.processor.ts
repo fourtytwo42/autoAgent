@@ -105,15 +105,19 @@ export class RunAgentProcessor extends BaseJobProcessor {
     }
 
     // Save agent output to blackboard if task_id provided
-    if (payload.task_id) {
+    const taskId = payload.context?.task_id;
+    if (taskId) {
       try {
+        console.log(`[RunAgentProcessor] Saving output for task ${taskId} from agent ${payload.agent_id}`);
         const agentOutput = await blackboardService.createAgentOutput(
           output.agent_id,
           output.model_id,
-          payload.task_id,
+          taskId,
           output.output,
           output.metadata
         );
+
+        console.log(`[RunAgentProcessor] Created agent output ${agentOutput.id} for task ${taskId}`);
 
         // Schedule Judge to evaluate this output
         await jobQueue.createRunAgentJob(
@@ -121,28 +125,32 @@ export class RunAgentProcessor extends BaseJobProcessor {
           {
             agent_output_id: agentOutput.id,
             agent_output: output.output,
-            task_id: payload.task_id,
+            task_id: taskId,
             agent_id: output.agent_id,
             web_enabled: payload.context?.web_enabled ?? false,
           }
         );
 
         // Check if all agents working on this task have completed
-        const taskCompleted = await checkTaskCompletion(payload.task_id);
+        const taskCompleted = await checkTaskCompletion(taskId);
         
-        if (!taskCompleted) {
+        if (taskCompleted) {
+          console.log(`[RunAgentProcessor] Task ${taskId} marked as completed`);
+        } else {
           // Log that task is still pending (might be waiting for other agents)
-          console.log(`Task ${payload.task_id} still pending - waiting for other agents or dependencies`);
+          console.log(`[RunAgentProcessor] Task ${taskId} still pending - waiting for other agents or dependencies`);
         }
       } catch (error) {
-        console.error(`Error saving agent output for task ${payload.task_id}:`, error);
+        console.error(`[RunAgentProcessor] Error saving agent output for task ${taskId}:`, error);
         // Still try to check task completion even if output save failed
         try {
-          await checkTaskCompletion(payload.task_id);
+          await checkTaskCompletion(taskId);
         } catch (checkError) {
-          console.error(`Error checking task completion for ${payload.task_id}:`, checkError);
+          console.error(`[RunAgentProcessor] Error checking task completion for ${taskId}:`, checkError);
         }
       }
+    } else {
+      console.log(`[RunAgentProcessor] No task_id in payload for agent ${payload.agent_id}, skipping task output save`);
     }
 
     // Update agent metrics
@@ -158,7 +166,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
       type: 'agent_run',
       agent_id: output.agent_id,
       model_id: output.model_id,
-      blackboard_item_id: payload.task_id || null,
+      blackboard_item_id: payload.context?.task_id || null,
       job_id: job.id,
       data: {
         latency_ms: output.latency_ms,
@@ -625,7 +633,13 @@ export class RunAgentProcessor extends BaseJobProcessor {
       }
 
       // Attempt to assign the task now that dependencies are resolved (if any)
-      await taskManager.assignAgentToTask(taskId);
+      console.log(`[TaskPlanner] Attempting to assign task ${taskId}: ${task.summary.substring(0, 50)}`);
+      const assigned = await taskManager.assignAgentToTask(taskId);
+      if (assigned) {
+        console.log(`[TaskPlanner] Successfully assigned task ${taskId}`);
+      } else {
+        console.log(`[TaskPlanner] Failed to assign task ${taskId} - may have dependencies or no matching agents`);
+      }
     }
 
     // Also save the full output as agent output for reference
