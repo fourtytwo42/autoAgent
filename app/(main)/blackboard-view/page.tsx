@@ -100,7 +100,7 @@ export default function BlackboardViewPage() {
       const currentIds = new Set(items.map(item => item.id));
       const newIds = new Set(newItems.map((item: BlackboardItem) => item.id));
       const idsChanged = currentIds.size !== newIds.size || 
-        Array.from(newIds).some(id => !currentIds.has(id));
+        Array.from(newIds as Set<string>).some((id: string) => !currentIds.has(id));
       
       if (idsChanged || items.length === 0) {
         setItems(newItems);
@@ -1239,6 +1239,8 @@ export default function BlackboardViewPage() {
           </CardContent>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }
