@@ -47,7 +47,7 @@ export class WorkerAgent extends BaseAgent {
       }
     }
 
-    // Build messages
+    // Build messages - emphasize focusing ONLY on the specific task
     const messages: ChatMessage[] = [
       {
         role: 'system',
@@ -55,7 +55,14 @@ export class WorkerAgent extends BaseAgent {
       },
       {
         role: 'user',
-        content: `Execute the following task:\n\n${taskSummary}\n\n${relatedContext ? `\nContext:\n${relatedContext}` : ''}\n\nProvide a clear, complete response that addresses the task requirements.`,
+        content: `**IMPORTANT: You must ONLY complete the specific task below. Do NOT attempt to complete the entire goal or other tasks.**
+
+**Your Task:**
+${taskSummary}
+
+${relatedContext ? `\n**Context (for reference only - do NOT complete these):**\n${relatedContext}\n\nRemember: The goal and other tasks are for context only. Focus ONLY on completing YOUR task above.` : ''}
+
+Provide a clear, complete response that addresses ONLY the task requirements listed above. Do not include information about other tasks or attempt to complete the entire goal.`,
       },
     ];
 

@@ -20,7 +20,10 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
   const assignedAgents = task.dimensions?.assigned_agents || 
     (task.dimensions?.assigned_agent ? [task.dimensions.assigned_agent] : []);
   
+  console.log(`[checkTaskCompletion] Task ${taskId}: assigned_agents=${JSON.stringify(assignedAgents)}, assigned_agent=${task.dimensions?.assigned_agent}`);
+  
   if (assignedAgents.length === 0) {
+    console.log(`[checkTaskCompletion] Task ${taskId} has no assigned agents, cannot check completion`);
     return false;
   }
 
@@ -40,9 +43,13 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
     assignedOutputs.map(o => o.dimensions?.agent_id).filter(Boolean)
   );
   
+  console.log(`[checkTaskCompletion] Task ${taskId}: agentsWithOutputs=${JSON.stringify(Array.from(agentsWithOutputs))}, assignedAgents=${JSON.stringify(assignedAgents)}`);
+  
   const allAgentsComplete = assignedAgents.every(agentId => 
     agentsWithOutputs.has(agentId)
   );
+  
+  console.log(`[checkTaskCompletion] Task ${taskId}: allAgentsComplete=${allAgentsComplete}, current status=${task.dimensions?.status}`);
 
   if (allAgentsComplete && task.dimensions?.status !== 'completed') {
     // Mark task as completed
