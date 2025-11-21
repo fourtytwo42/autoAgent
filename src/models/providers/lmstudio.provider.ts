@@ -1,5 +1,5 @@
 import { BaseProvider } from './base.provider';
-import { IModelProvider } from '../provider.interface';
+import { IModelProvider, ProviderModel } from '../provider.interface';
 import { ModelConfig, ChatMessage, ModelExecutionOptions } from '@/src/types/models';
 import { getProviderConfig } from '@/src/config/models';
 
@@ -136,6 +136,36 @@ export class LMStudioProvider extends BaseProvider implements IModelProvider {
       return response.ok;
     } catch {
       return false;
+    }
+  }
+
+  async listModels(): Promise<ProviderModel[]> {
+    try {
+      const response = await this.withTimeout(
+        fetch(`${this.baseUrl}/v1/models`, {
+          method: 'GET',
+        }),
+        this.timeout
+      );
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json();
+      return (data.data || []).map((model: any) => ({
+        id: model.id,
+        name: model.id,
+        display_name: model.id,
+        modalities: ['text'],
+        context_window: undefined,
+        supports_streaming: true,
+        supports_vision: false,
+        supports_image_gen: false,
+      }));
+    } catch (error) {
+      console.error('Error fetching LM Studio models:', error);
+      return [];
     }
   }
 }

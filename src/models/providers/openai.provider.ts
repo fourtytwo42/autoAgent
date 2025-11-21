@@ -1,5 +1,5 @@
 import { BaseProvider } from './base.provider';
-import { IModelProvider } from '../provider.interface';
+import { IModelProvider, ProviderModel } from '../provider.interface';
 import { ModelConfig, ChatMessage, ChatMessageWithImages, ModelExecutionOptions } from '@/src/types/models';
 import { getProviderConfig } from '@/src/config/models';
 
@@ -201,6 +201,52 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
 
   isAvailable(): boolean {
     return !!this.apiKey;
+  }
+
+  async listModels(): Promise<ProviderModel[]> {
+    if (!this.apiKey) {
+      return [];
+    }
+
+    try {
+      const response = await this.withTimeout(
+        fetch(`${this.baseUrl}/models`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+        }),
+        this.timeout
+      );
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = await response.json();
+      return (data.data || []).map((model: any) => ({
+        id: model.id,
+        name: model.id,
+        display_name: model.id,
+        modalities: this.getModalitiesFromModel(model.id),
+        context_window: model.context_window,
+        supports_streaming: true,
+        supports_vision: model.id.includes('vision') || model.id.includes('gpt-4'),
+        supports_image_gen: false,
+      }));
+    } catch (error) {
+      console.error('Error fetching OpenAI models:', error);
+      return [];
+    }
+  }
+
+  private getModalitiesFromModel(modelId: string): string[] {
+    const modalities: string[] = ['text'];
+    if (modelId.includes('vision') || modelId.includes('gpt-4')) {
+      modalities.push('vision');
+    }
+    return modalities;
   }
 }
 

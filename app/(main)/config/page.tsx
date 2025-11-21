@@ -1,0 +1,607 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Button from '../../components/ui/Button';
+
+interface Provider {
+  id: string;
+  name: string;
+  hasApiKey: boolean;
+  hasBaseUrl: boolean;
+  baseUrl?: string;
+  timeout?: number;
+  configured: boolean;
+}
+
+interface ProviderModel {
+  id: string;
+  name: string;
+  display_name?: string;
+  modalities?: string[];
+  context_window?: number;
+  supports_streaming?: boolean;
+  supports_vision?: boolean;
+  supports_image_gen?: boolean;
+}
+
+interface Model {
+  id: string;
+  name: string;
+  provider: string;
+  display_name: string;
+  is_enabled: boolean;
+  modalities: string[];
+  quality_score: number;
+  reliability_score: number;
+  avg_latency_ms?: number;
+  cost_per_1k_tokens?: number;
+}
+
+export default function ConfigPage() {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [providerModels, setProviderModels] = useState<ProviderModel[]>([]);
+  const [registeredModels, setRegisteredModels] = useState<Model[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [editingModel, setEditingModel] = useState<Model | null>(null);
+  const [showAddModel, setShowAddModel] = useState(false);
+
+  useEffect(() => {
+    fetchProviders();
+    fetchRegisteredModels();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProvider) {
+      fetchProviderModels(selectedProvider);
+      fetchRegisteredModels(selectedProvider);
+    }
+  }, [selectedProvider]);
+
+  const fetchProviders = async () => {
+    try {
+      const response = await fetch('/api/providers');
+      const data = await response.json();
+      setProviders(data.providers || []);
+    } catch (error) {
+      console.error('Error fetching providers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProviderModels = async (providerId: string) => {
+    setLoadingModels(true);
+    try {
+      const response = await fetch(`/api/providers/${providerId}/models`);
+      const data = await response.json();
+      setProviderModels(data.models || []);
+    } catch (error) {
+      console.error('Error fetching provider models:', error);
+      setProviderModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const fetchRegisteredModels = async (providerId?: string) => {
+    try {
+      const url = providerId 
+        ? `/api/models?provider=${providerId}`
+        : '/api/models';
+      const response = await fetch(url);
+      const data = await response.json();
+      setRegisteredModels(data.models || []);
+    } catch (error) {
+      console.error('Error fetching registered models:', error);
+    }
+  };
+
+  const toggleModelEnabled = async (modelId: string, currentState: boolean) => {
+    try {
+      const response = await fetch(`/api/models/${modelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_enabled: !currentState }),
+      });
+
+      if (response.ok) {
+        await fetchRegisteredModels(selectedProvider || undefined);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message || 'Failed to update model'}`);
+      }
+    } catch (error) {
+      console.error('Error toggling model:', error);
+      alert('Failed to update model');
+    }
+  };
+
+  const handleAddModel = async (providerModel: ProviderModel) => {
+    try {
+      const response = await fetch('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: providerModel.name,
+          provider: selectedProvider,
+          display_name: providerModel.display_name || providerModel.name,
+          modalities: providerModel.modalities || ['text'],
+          quality_score: 0.5,
+          reliability_score: 0.5,
+        }),
+      });
+
+      if (response.ok) {
+        await fetchRegisteredModels(selectedProvider || undefined);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message || 'Failed to add model'}`);
+      }
+    } catch (error) {
+      console.error('Error adding model:', error);
+      alert('Failed to add model');
+    }
+  };
+
+  const handleSaveModel = async (modelData: Partial<Model>) => {
+    try {
+      if (editingModel) {
+        const response = await fetch(`/api/models/${editingModel.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(modelData),
+        });
+
+        if (response.ok) {
+          await fetchRegisteredModels(selectedProvider || undefined);
+          setEditingModel(null);
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.message || 'Failed to update model'}`);
+        }
+      } else {
+        const response = await fetch('/api/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(modelData),
+        });
+
+        if (response.ok) {
+          await fetchRegisteredModels(selectedProvider || undefined);
+          setShowAddModel(false);
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.message || 'Failed to create model'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving model:', error);
+      alert('Failed to save model');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-gray-400">Loading providers...</div>
+      </div>
+    );
+  }
+
+  if (selectedProvider) {
+    const provider = providers.find(p => p.id === selectedProvider);
+    const registeredModelIds = new Set(registeredModels.map(m => m.name));
+
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <button
+            onClick={() => setSelectedProvider(null)}
+            className="text-blue-400 hover:text-blue-300 mb-4 flex items-center gap-2"
+          >
+            <span>←</span> Back to Providers
+          </button>
+          <h1 className="text-3xl font-bold text-white mb-2">{provider?.name} Models</h1>
+          <p className="text-gray-400">
+            {provider?.configured 
+              ? 'Available models from this provider'
+              : 'Configure this provider in your .env file to see available models'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Available Models */}
+          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">Available Models</h2>
+            {loadingModels ? (
+              <div className="text-gray-400">Loading models...</div>
+            ) : providerModels.length === 0 ? (
+              <div className="text-gray-400 text-center py-8">
+                {provider?.configured 
+                  ? 'No models found or provider unavailable'
+                  : 'Provider not configured'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {providerModels.map((model) => {
+                  const isRegistered = registeredModelIds.has(model.name);
+                  return (
+                    <div
+                      key={model.id}
+                      className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-white mb-1">
+                            {model.display_name || model.name}
+                          </h3>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {model.modalities?.map((mod) => (
+                              <span
+                                key={mod}
+                                className="px-2 py-1 bg-gray-600 text-gray-300 rounded text-xs"
+                              >
+                                {mod}
+                              </span>
+                            ))}
+                          </div>
+                          {model.context_window && (
+                            <div className="text-xs text-gray-400 mt-2">
+                              Context: {model.context_window.toLocaleString()} tokens
+                            </div>
+                          )}
+                        </div>
+                        {isRegistered ? (
+                          <span className="px-3 py-1 bg-green-900 text-green-300 rounded text-sm">
+                            Registered
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddModel(model)}
+                            disabled={!provider?.configured}
+                          >
+                            Add
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Registered Models */}
+          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">Registered Models</h2>
+            {registeredModels.length === 0 ? (
+              <div className="text-gray-400 text-center py-8">No models registered yet</div>
+            ) : (
+              <div className="space-y-3">
+                {registeredModels.map((model) => (
+                  <div
+                    key={model.id}
+                    className="bg-gray-700 rounded-lg p-4 border border-gray-600"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-white mb-1">
+                          {model.display_name || model.name}
+                        </h3>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {model.modalities.map((mod) => (
+                            <span
+                              key={mod}
+                              className="px-2 py-1 bg-gray-600 text-gray-300 rounded text-xs"
+                            >
+                              {mod}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleModelEnabled(model.id, model.is_enabled)}
+                        className={`px-3 py-1 rounded text-sm transition-colors ${
+                          model.is_enabled
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                        }`}
+                      >
+                        {model.is_enabled ? 'Enabled' : 'Disabled'}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-gray-400">
+                      <span>Quality: {((model.quality_score || 0) * 100).toFixed(0)}%</span>
+                      <span>Reliability: {((model.reliability_score || 0) * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setEditingModel(model)}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Add Manual Model Button */}
+        <div className="mt-6">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setEditingModel(null);
+              setShowAddModel(true);
+            }}
+          >
+            Add Model Manually
+          </Button>
+        </div>
+
+        {/* Edit Model Modal */}
+        {(showAddModel || editingModel) && (
+          <ModelForm
+            model={editingModel}
+            provider={selectedProvider}
+            onSave={handleSaveModel}
+            onCancel={() => {
+              setShowAddModel(false);
+              setEditingModel(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">Configuration</h1>
+        <p className="text-gray-400">Configure providers and manage models</p>
+      </div>
+
+      {/* Provider Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {providers.map((provider) => {
+          const modelCount = registeredModels.filter(m => m.provider === provider.id).length;
+          return (
+            <div
+              key={provider.id}
+              onClick={() => setSelectedProvider(provider.id)}
+              className="bg-gray-800 rounded-lg border border-gray-700 p-6 cursor-pointer hover:border-blue-500 hover:shadow-lg transition-all"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">{provider.name}</h2>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    provider.configured
+                      ? 'bg-green-900 text-green-300'
+                      : 'bg-red-900 text-red-300'
+                  }`}
+                >
+                  {provider.configured ? 'Configured' : 'Not Configured'}
+                </span>
+              </div>
+              
+              <div className="space-y-2 text-sm text-gray-400 mb-4">
+                {provider.hasApiKey && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span>API Key Set</span>
+                  </div>
+                )}
+                {provider.hasBaseUrl && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span>Base URL: {provider.baseUrl}</span>
+                  </div>
+                )}
+                {!provider.hasApiKey && !provider.hasBaseUrl && (
+                  <div className="text-gray-500">Not configured</div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-gray-700">
+                <div className="text-sm text-gray-400">
+                  {modelCount} model{modelCount !== 1 ? 's' : ''} registered
+                </div>
+                <Button size="sm" variant="primary">
+                  View Models →
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Environment Variables Help */}
+      <div className="mt-8 bg-gray-800 rounded-lg border border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Environment Variables</h3>
+        <p className="text-gray-400 text-sm mb-4">
+          Configure providers by adding these variables to your <code className="bg-gray-900 px-2 py-1 rounded text-xs">.env</code> file:
+        </p>
+        <div className="bg-gray-900 rounded p-4 font-mono text-sm text-gray-300 space-y-1">
+          <div>OPENAI_API_KEY=your_key_here</div>
+          <div>ANTHROPIC_API_KEY=your_key_here</div>
+          <div>GROQ_API_KEY=your_key_here</div>
+          <div>OLLAMA_BASE_URL=http://localhost:11434</div>
+          <div>LM_STUDIO_BASE_URL=http://localhost:1234</div>
+        </div>
+      </div>
+
+      {/* Add Manual Model Modal */}
+      {showAddModel && (
+        <ModelForm
+          model={null}
+          provider={null}
+          onSave={handleSaveModel}
+          onCancel={() => setShowAddModel(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ModelForm({
+  model,
+  provider,
+  onSave,
+  onCancel,
+}: {
+  model: Model | null;
+  provider: string | null;
+  onSave: (data: Partial<Model>) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    name: model?.name || '',
+    provider: provider || model?.provider || 'openai',
+    display_name: model?.display_name || '',
+    modalities: model?.modalities || ['text'],
+    quality_score: model?.quality_score || 0.5,
+    reliability_score: model?.reliability_score || 0.5,
+    cost_per_1k_tokens: model?.cost_per_1k_tokens || undefined,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4 text-white">
+          {model ? 'Edit Model' : 'Add New Model'}
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Display Name</label>
+            <input
+              type="text"
+              value={formData.display_name}
+              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Provider</label>
+            <select
+              value={formData.provider}
+              onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              disabled={!!provider}
+            >
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="groq">Groq</option>
+              <option value="ollama">Ollama</option>
+              <option value="lmstudio">LM Studio</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Modalities</label>
+            <div className="flex gap-4">
+              {['text', 'vision', 'image_gen'].map((mod) => (
+                <label key={mod} className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.modalities.includes(mod)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData({
+                          ...formData,
+                          modalities: [...formData.modalities, mod],
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          modalities: formData.modalities.filter((m) => m !== mod),
+                        });
+                      }
+                    }}
+                    className="mr-2 w-4 h-4"
+                  />
+                  <span className="text-gray-300">{mod}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Quality Score</label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                value={formData.quality_score}
+                onChange={(e) =>
+                  setFormData({ ...formData, quality_score: parseFloat(e.target.value) })
+                }
+                className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Reliability Score</label>
+              <input
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                value={formData.reliability_score}
+                onChange={(e) =>
+                  setFormData({ ...formData, reliability_score: parseFloat(e.target.value) })
+                }
+                className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Cost per 1k Tokens (optional)</label>
+            <input
+              type="number"
+              step="0.0001"
+              value={formData.cost_per_1k_tokens || ''}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  cost_per_1k_tokens: e.target.value ? parseFloat(e.target.value) : undefined,
+                })
+              }
+              className="w-full border border-gray-600 rounded-lg px-4 py-2 bg-gray-700 text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              {model ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
 import { BaseProvider } from './base.provider';
-import { IModelProvider } from '../provider.interface';
+import { IModelProvider, ProviderModel } from '../provider.interface';
 import { ModelConfig, ChatMessage, ChatMessageWithImages, ModelExecutionOptions } from '@/src/types/models';
 import { getProviderConfig } from '@/src/config/models';
 
@@ -219,6 +219,54 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
 
   isAvailable(): boolean {
     return !!this.apiKey;
+  }
+
+  async listModels(): Promise<ProviderModel[]> {
+    // Anthropic doesn't have a public models endpoint, return known models
+    const knownModels: ProviderModel[] = [
+      {
+        id: 'claude-3-5-sonnet-20241022',
+        name: 'claude-3-5-sonnet-20241022',
+        display_name: 'Claude 3.5 Sonnet',
+        modalities: ['text', 'vision'],
+        context_window: 200000,
+        supports_streaming: true,
+        supports_vision: true,
+        supports_image_gen: false,
+      },
+      {
+        id: 'claude-3-opus-20240229',
+        name: 'claude-3-opus-20240229',
+        display_name: 'Claude 3 Opus',
+        modalities: ['text', 'vision'],
+        context_window: 200000,
+        supports_streaming: true,
+        supports_vision: true,
+        supports_image_gen: false,
+      },
+      {
+        id: 'claude-3-sonnet-20240229',
+        name: 'claude-3-sonnet-20240229',
+        display_name: 'Claude 3 Sonnet',
+        modalities: ['text', 'vision'],
+        context_window: 200000,
+        supports_streaming: true,
+        supports_vision: true,
+        supports_image_gen: false,
+      },
+      {
+        id: 'claude-3-haiku-20240307',
+        name: 'claude-3-haiku-20240307',
+        display_name: 'Claude 3 Haiku',
+        modalities: ['text', 'vision'],
+        context_window: 200000,
+        supports_streaming: true,
+        supports_vision: true,
+        supports_image_gen: false,
+      },
+    ];
+
+    return this.apiKey ? knownModels : [];
   }
 }
 

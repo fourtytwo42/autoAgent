@@ -53,6 +53,10 @@ export class ModelRegistry {
     this.cacheTimestamp = 0;
   }
 
+  async refresh(): Promise<void> {
+    this.clearCache();
+  }
+
   private mapRowToConfig(row: ModelRow): ModelConfig {
     return {
       id: row.id,

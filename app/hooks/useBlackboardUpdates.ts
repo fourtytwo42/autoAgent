@@ -18,21 +18,24 @@ export function useBlackboardUpdates(initialItems: BlackboardItem[] = []) {
   const [items, setItems] = useState<BlackboardItem[]>(initialItems);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  const { isConnected } = useSSE('/api/stream?channel=blackboard', {
-    onMessage: (data) => {
-      if (data.type === 'blackboard_update') {
-        if (data.action === 'created') {
-          setItems((prev) => [data.item, ...prev]);
-        } else if (data.action === 'updated') {
-          setItems((prev) =>
-            prev.map((item) => (item.id === data.item.id ? data.item : item))
-          );
-        } else if (data.action === 'deleted') {
-          setItems((prev) => prev.filter((item) => item.id !== data.itemId));
-        }
-        setLastUpdate(new Date());
+  // Use useCallback to stabilize the message handler
+  const handleMessage = useCallback((data: any) => {
+    if (data.type === 'blackboard_update') {
+      if (data.action === 'created') {
+        setItems((prev) => [data.item, ...prev]);
+      } else if (data.action === 'updated') {
+        setItems((prev) =>
+          prev.map((item) => (item.id === data.item.id ? data.item : item))
+        );
+      } else if (data.action === 'deleted') {
+        setItems((prev) => prev.filter((item) => item.id !== data.itemId));
       }
-    },
+      setLastUpdate(new Date());
+    }
+  }, []);
+
+  const { isConnected } = useSSE('/api/stream?channel=blackboard', {
+    onMessage: handleMessage,
   });
 
   const refresh = useCallback(async () => {

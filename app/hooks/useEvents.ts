@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSSE } from './useSSE';
 
 export interface Event {
@@ -16,12 +16,15 @@ export interface Event {
 export function useEvents(limit: number = 100) {
   const [events, setEvents] = useState<Event[]>([]);
 
+  // Use useCallback to stabilize the message handler
+  const handleMessage = useCallback((data: any) => {
+    if (data.type === 'event') {
+      setEvents((prev) => [data.event, ...prev].slice(0, limit));
+    }
+  }, [limit]);
+
   const { isConnected } = useSSE('/api/stream?channel=system_events', {
-    onMessage: (data) => {
-      if (data.type === 'event') {
-        setEvents((prev) => [data.event, ...prev].slice(0, limit));
-      }
-    },
+    onMessage: handleMessage,
   });
 
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProposalView from '../../components/agents/ProposalView';
+import Button from '../../components/ui/Button';
 
 interface Agent {
   id: string;
@@ -52,20 +53,19 @@ export default function AgentsPage() {
 
   return (
     <div className="flex flex-col h-screen max-h-[calc(100vh-4rem)]">
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Agents</h1>
-          <button
+      <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-white">Agents</h1>
+          <Button
             onClick={() => {
               setShowProposals(!showProposals);
               if (!showProposals) {
                 fetchProposals();
               }
             }}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             {showProposals ? 'Hide' : 'Show'} Proposals
-          </button>
+          </Button>
         </div>
 
         {showProposals && (
@@ -74,17 +74,17 @@ export default function AgentsPage() {
           </div>
         )}
         {loading ? (
-          <div>Loading...</div>
+          <div className="text-gray-400 text-center py-12">Loading agents...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse border border-gray-300">
+          <div className="overflow-x-auto rounded-lg border border-gray-700">
+            <table className="min-w-full border-collapse bg-gray-800">
               <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-4 py-2 text-left">ID</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Description</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Core</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Enabled</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Modalities</th>
+                <tr className="bg-gray-700">
+                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">ID</th>
+                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Description</th>
+                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Core</th>
+                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Enabled</th>
+                  <th className="border-b border-gray-600 px-6 py-4 text-left text-gray-200 font-semibold">Modalities</th>
                 </tr>
               </thead>
               <tbody>
@@ -92,20 +92,26 @@ export default function AgentsPage() {
                   <tr
                     key={agent.id}
                     onClick={() => setSelectedAgent(agent)}
-                    className={`cursor-pointer hover:bg-gray-50 ${
-                      selectedAgent?.id === agent.id ? 'bg-blue-50' : ''
+                    className={`cursor-pointer hover:bg-gray-700 transition-colors ${
+                      selectedAgent?.id === agent.id ? 'bg-gray-700' : ''
                     }`}
                   >
-                    <td className="border border-gray-300 px-4 py-2">{agent.id}</td>
-                    <td className="border border-gray-300 px-4 py-2">{agent.description}</td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {agent.is_core ? '✓' : ''}
+                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">{agent.id}</td>
+                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">{agent.description}</td>
+                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
+                      {agent.is_core ? <span className="text-green-400">✓</span> : ''}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {agent.is_enabled ? '✓' : ''}
+                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
+                      {agent.is_enabled ? <span className="text-green-400">✓</span> : ''}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {agent.modalities.join(', ')}
+                    <td className="border-b border-gray-700 px-6 py-4 text-gray-200">
+                      <div className="flex gap-2">
+                        {agent.modalities.map((mod) => (
+                          <span key={mod} className="px-2 py-1 bg-gray-600 rounded text-xs">
+                            {mod}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -115,28 +121,46 @@ export default function AgentsPage() {
         )}
       </div>
       {selectedAgent && (
-        <div className="w-96 bg-gray-50 p-4 border-l">
-          <h2 className="font-bold mb-4">Agent Details</h2>
-          <div className="space-y-2">
+        <div className="w-96 bg-gray-800 p-6 border-l border-gray-700">
+          <h2 className="text-xl font-bold mb-6 text-white">Agent Details</h2>
+          <div className="space-y-4">
             <div>
-              <div className="text-sm font-medium text-gray-600">ID</div>
-              <div>{selectedAgent.id}</div>
+              <div className="text-sm font-medium text-gray-400 mb-1">ID</div>
+              <div className="text-gray-200 font-mono text-sm">{selectedAgent.id}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-600">Description</div>
-              <div>{selectedAgent.description}</div>
+              <div className="text-sm font-medium text-gray-400 mb-1">Description</div>
+              <div className="text-gray-200">{selectedAgent.description}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-600">Core</div>
-              <div>{selectedAgent.is_core ? 'Yes' : 'No'}</div>
+              <div className="text-sm font-medium text-gray-400 mb-1">Core</div>
+              <div className="text-gray-200">
+                {selectedAgent.is_core ? (
+                  <span className="text-green-400">Yes</span>
+                ) : (
+                  <span className="text-gray-500">No</span>
+                )}
+              </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-600">Enabled</div>
-              <div>{selectedAgent.is_enabled ? 'Yes' : 'No'}</div>
+              <div className="text-sm font-medium text-gray-400 mb-1">Enabled</div>
+              <div className="text-gray-200">
+                {selectedAgent.is_enabled ? (
+                  <span className="text-green-400">Yes</span>
+                ) : (
+                  <span className="text-gray-500">No</span>
+                )}
+              </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-600">Modalities</div>
-              <div>{selectedAgent.modalities.join(', ')}</div>
+              <div className="text-sm font-medium text-gray-400 mb-2">Modalities</div>
+              <div className="flex flex-wrap gap-2">
+                {selectedAgent.modalities.map((mod) => (
+                  <span key={mod} className="px-3 py-1 bg-gray-700 rounded text-sm">
+                    {mod}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>

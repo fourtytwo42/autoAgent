@@ -13,47 +13,99 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const optionsRef = useRef(options);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
 
-  const { onMessage, onError, onOpen, onClose } = options;
+  // Update options ref without causing re-renders
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   useEffect(() => {
     if (!url) {
+      setIsConnected(false);
       return;
     }
 
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
+    let mounted = true;
+    const maxReconnectAttempts = 5;
+    const reconnectDelay = 3000;
 
-    eventSource.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-      onOpen?.();
-    };
+    const connect = () => {
+      if (!mounted || !url) return;
 
-    eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        onMessage?.(data);
-      } catch (e) {
-        // If not JSON, treat as plain text
-        onMessage?.(event.data);
+        const eventSource = new EventSource(url);
+        eventSourceRef.current = eventSource;
+
+        eventSource.onopen = () => {
+          if (!mounted) {
+            eventSource.close();
+            return;
+          }
+          setIsConnected(true);
+          setError(null);
+          reconnectAttemptsRef.current = 0;
+          optionsRef.current.onOpen?.();
+        };
+
+        eventSource.onmessage = (event) => {
+          if (!mounted) return;
+          try {
+            const data = JSON.parse(event.data);
+            optionsRef.current.onMessage?.(data);
+          } catch (e) {
+            // If not JSON, treat as plain text
+            optionsRef.current.onMessage?.(event.data);
+          }
+        };
+
+        eventSource.onerror = (err) => {
+          if (!mounted) return;
+          
+          // Only set error if connection was previously established
+          if (eventSource.readyState === EventSource.CLOSED) {
+            setIsConnected(false);
+            const error = new Error('SSE connection closed');
+            setError(error);
+            optionsRef.current.onError?.(error);
+
+            // Attempt reconnection
+            if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+              reconnectAttemptsRef.current++;
+              reconnectTimeoutRef.current = setTimeout(() => {
+                if (mounted) {
+                  eventSource.close();
+                  connect();
+                }
+              }, reconnectDelay);
+            }
+          }
+        };
+      } catch (err) {
+        if (mounted) {
+          setIsConnected(false);
+          setError(err as Error);
+        }
       }
     };
 
-    eventSource.onerror = (err) => {
-      const error = new Error('SSE connection error');
-      setError(error);
-      setIsConnected(false);
-      onError?.(error);
-    };
+    connect();
 
     return () => {
-      eventSource.close();
-      eventSourceRef.current = null;
+      mounted = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
       setIsConnected(false);
-      onClose?.();
+      optionsRef.current.onClose?.();
     };
-  }, [url, onMessage, onError, onOpen, onClose]);
+  }, [url]); // Only depend on url, not options
 
   const close = useCallback(() => {
     if (eventSourceRef.current) {
