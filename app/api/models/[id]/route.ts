@@ -6,9 +6,10 @@ export const dynamic = 'force-dynamic';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const body = await request.json();
     const { is_enabled, quality_score, reliability_score, avg_latency_ms, cost_per_1k_tokens } = body;
 
@@ -23,7 +24,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 });
     }
 
-    const updated = await modelsRepository.update(params.id, updates);
+    const updated = await modelsRepository.update(resolvedParams.id, updates);
     
     // Refresh registry cache
     await modelRegistry.refresh();
@@ -40,10 +41,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await modelsRepository.delete(params.id);
+    const resolvedParams = await params;
+    await modelsRepository.delete(resolvedParams.id);
     await modelRegistry.refresh();
     return NextResponse.json({ success: true });
   } catch (error) {

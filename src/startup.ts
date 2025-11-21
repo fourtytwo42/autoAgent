@@ -10,6 +10,7 @@ import { StewardPrompt } from './agents/prompts/steward.prompt';
 import { ArchitectureEngineerPrompt } from './agents/prompts/architectureEngineer.prompt';
 import { MemoryCuratorPrompt } from './agents/prompts/memoryCurator.prompt';
 import { GoalRefinerPrompt } from './agents/prompts/goalRefiner.prompt';
+import { WorkerPrompt } from './agents/prompts/worker.prompt';
 import { ResearchWorkerPrompt } from './agents/prompts/researchWorker.prompt';
 import { WritingWorkerPrompt } from './agents/prompts/writingWorker.prompt';
 import { AnalysisWorkerPrompt } from './agents/prompts/analysisWorker.prompt';

@@ -146,6 +146,9 @@ export default function ConversationPage() {
       if (contentType.includes('text/event-stream')) {
         // Handle streaming response
         const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('Response body is not readable');
+        }
         const decoder = new TextDecoder();
         let buffer = '';
 

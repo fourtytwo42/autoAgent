@@ -67,7 +67,7 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
     ];
 
     // Select model and execute
-    const model = await this.selectModel(context.model_id);
+    const model = await this.selectModel();
     const responseText = await this.executeModelCall(model, messages, context.options);
 
     const latency = Date.now() - startTime;

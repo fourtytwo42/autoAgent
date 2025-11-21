@@ -60,7 +60,8 @@ export class GoalRefinerAgent extends BaseAgent {
   }
 
   async *executeStream(context: AgentExecutionContext): AsyncIterable<string> {
-    yield* this.executeModelCallStream(context);
+    // Use default implementation from BaseAgent
+    yield* super.executeStream(context);
   }
 }
 

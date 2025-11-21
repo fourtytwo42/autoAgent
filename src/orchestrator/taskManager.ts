@@ -102,8 +102,8 @@ export class TaskManager {
     }
 
     // Get how many agents should work on this task
-    const agentCount = task.dimensions?.agent_count || task.metadata?.agent_count || 1;
-    const taskType = task.dimensions?.task_type || task.metadata?.task_type || 'general';
+    const agentCount = task.dimensions?.agent_count || 1;
+    const taskType = task.dimensions?.task_type || 'general';
 
     // Get enabled agents
     const agents = await agentRegistry.getEnabledAgents();

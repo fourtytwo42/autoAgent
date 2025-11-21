@@ -338,8 +338,8 @@ export class RunAgentProcessor extends BaseJobProcessor {
           inTable = true;
           headerFound = true;
           // Parse header to map column names
-          const headerCols = trimmed.split('|').map(col => col.trim().toLowerCase()).filter(col => col.length > 0);
-          headerCols.forEach((col, idx) => {
+          const headerCols = trimmed.split('|').map((col: string) => col.trim().toLowerCase()).filter((col: string) => col.length > 0);
+          headerCols.forEach((col: string, idx: number) => {
             if (col.includes('description')) columnMap.description = idx;
             if (col.includes('priority')) columnMap.priority = idx;
             if (col.includes('agent') || col.includes('count')) columnMap.agent_count = idx;
@@ -358,7 +358,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
             // Process table rows
             if (inTable && headerFound && trimmed.startsWith('|') && trimmed.endsWith('|')) {
               // Split by pipe and extract columns
-              const columns = trimmed.split('|').map(col => col.trim()).filter(col => col.length > 0);
+              const columns = trimmed.split('|').map((col: string) => col.trim()).filter((col: string) => col.length > 0);
               
               // Need at least 3 columns: #, Description, Priority
               if (columns.length >= 3) {
@@ -416,7 +416,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
               // Extract task numbers (e.g., "Task 4, Task 5" or "4, 5" or "Tasks 4–5")
               const depMatches = dependenciesStr.match(/\d+/g);
               if (depMatches) {
-                dependencies.push(...depMatches.map(n => parseInt(n)));
+                dependencies.push(...depMatches.map((n: string) => parseInt(n)));
               }
             }
             
@@ -592,7 +592,7 @@ export class RunAgentProcessor extends BaseJobProcessor {
           goal_id: goalId,
           ...(output.metadata || {}),
         },
-        links: { parents: [goalId] },
+        links: { parents: [goalId] }, // Output is linked to goal (not task) for TaskPlanner
         detail: {
           content: output.output,
         },

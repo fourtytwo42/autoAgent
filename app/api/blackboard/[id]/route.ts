@@ -5,10 +5,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const item = await blackboardService.findById(params.id);
+    const resolvedParams = await params;
+    const item = await blackboardService.findById(resolvedParams.id);
 
     if (!item) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
@@ -26,13 +27,14 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params;
     const body = await request.json();
     const { summary, dimensions, links, detail } = body;
 
-    const updated = await blackboardService.update(params.id, {
+    const updated = await blackboardService.update(resolvedParams.id, {
       summary,
       dimensions,
       links,
@@ -55,10 +57,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const deleted = await blackboardService.delete(params.id);
+    const resolvedParams = await params;
+    const deleted = await blackboardService.delete(resolvedParams.id);
 
     if (!deleted) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });

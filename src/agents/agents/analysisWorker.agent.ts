@@ -60,15 +60,15 @@ export class AnalysisWorkerAgent extends BaseAgent {
     ];
 
     // Select model and execute
-    const model = await this.selectModel(context.model_id);
-    const response = await this.modelExecutor.generateText(model, messages, context.options);
+    const model = await this.selectModel();
+    const response = await this.executeModelCall(model, messages, context.options);
 
     const latency = Date.now() - startTime;
 
     return {
       agent_id: this.agentType.id,
       model_id: model.id,
-      output: response.text,
+      output: response,
       input_summary: taskSummary.substring(0, 200),
       latency_ms: latency,
       metadata: {

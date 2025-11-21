@@ -25,14 +25,14 @@ export async function cleanupCompletedTasks(goalId: string): Promise<void> {
       // Get all agent outputs for this task
       const outputs = await blackboardService.query({
         type: 'agent_output',
-        links: { parents: [task.id] },
+        parent_id: task.id,
       });
 
       // Delete judgements for these outputs
       for (const output of outputs) {
         const judgements = await blackboardService.query({
           type: 'judgement',
-          links: { parents: [output.id] },
+          parent_id: output.id,
         });
 
         for (const judgement of judgements) {

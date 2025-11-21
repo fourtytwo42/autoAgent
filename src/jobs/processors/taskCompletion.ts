@@ -26,7 +26,7 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
   if (assignedAgents.length === 0) {
     const allOutputs = await blackboardService.query({
       type: 'agent_output',
-      links: { parents: [taskId] },
+      parent_id: taskId,
     });
     
     if (allOutputs.length > 0) {
@@ -63,7 +63,7 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
   // Get all agent outputs for this task
   const outputs = await blackboardService.query({
     type: 'agent_output',
-    links: { parents: [taskId] },
+    parent_id: taskId,
   });
 
   // Filter to only outputs from assigned agents
@@ -78,7 +78,7 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
   
   console.log(`[checkTaskCompletion] Task ${taskId}: agentsWithOutputs=${JSON.stringify(Array.from(agentsWithOutputs))}, assignedAgents=${JSON.stringify(assignedAgents)}`);
   
-  const allAgentsComplete = assignedAgents.every(agentId => 
+  const allAgentsComplete = assignedAgents.every((agentId: string) => 
     agentsWithOutputs.has(agentId)
   );
   
@@ -120,9 +120,10 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
     }
 
     await eventsRepository.create({
-      type: 'task_completed',
+      type: 'task_updated',
       blackboard_item_id: taskId,
       data: {
+        status: 'completed',
         assigned_agents: assignedAgents,
         output_count: assignedOutputs.length,
       },
@@ -132,7 +133,7 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
     // Find tasks that depend on this completed task
     const dependentTasks = await blackboardService.query({
       type: 'task',
-      links: { parents: [task.links.parents?.[0] || ''] }, // Get all tasks for the same goal
+      parent_id: task.links.parents?.[0] || '', // Get all tasks for the same goal
     });
 
     for (const depTask of dependentTasks) {
@@ -203,21 +204,27 @@ async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string):
     for (const task of taskItems) {
       const outputs = await blackboardService.query({
         type: 'agent_output',
-        links: { parents: [task.id] },
+        parent_id: task.id,
       });
       allOutputs.push(...outputs);
     }
 
-    // Get judgements for these outputs
-    const judgements = await blackboardService.query({
-      type: 'judgement',
-      links: { parents: allOutputs.map(o => o.id) },
-    });
+    // Get judgements for these outputs (query by parent_id for each output)
+    const allJudgements = [];
+    for (const output of allOutputs) {
+      const outputJudgements = await blackboardService.query({
+        type: 'judgement',
+        parent_id: output.id,
+      });
+      allJudgements.push(...outputJudgements);
+    }
+    const judgements = allJudgements;
 
     // Build context for WeSpeaker
     const taskSummaries = taskItems.map(t => `- ${t.summary} (${t.dimensions?.status || 'unknown'})`).join('\n');
     const outputSummaries = allOutputs.map(o => {
-      const judgement = judgements.find(j => j.links.parents?.includes(o.id));
+      // Find judgement for this output (judgements have output.id as parent)
+      const judgement = judgements.find(j => j.links?.parents?.includes(o.id));
       const score = judgement?.dimensions?.score || 'N/A';
       return `- ${o.dimensions?.agent_id}: ${o.summary.substring(0, 100)}... (Score: ${score})`;
     }).join('\n');
