@@ -220,8 +220,11 @@ export async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: s
     }
     const judgements = allJudgements;
 
-    // Build context for WeSpeaker with full task outputs
-    const taskSummaries = [];
+    // Get full blackboard context in card format (same as blackboard view)
+    const blackboardContext = await blackboardService.getContextForAgent(goalId);
+    
+    // Build detailed context for WeSpeaker with full task outputs
+    const taskDetails = [];
     for (const task of taskItems) {
       // Find outputs linked to this task
       const taskOutputs = allOutputs.filter(o => {
@@ -233,17 +236,42 @@ export async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: s
       const childOutputIds = new Set(taskChildren.map(c => c.id));
       taskOutputs.push(...allOutputs.filter(o => childOutputIds.has(o.id)));
       
-      const outputTexts = taskOutputs.map(o => {
+      // Get full content from each output (not truncated)
+      const outputDetails = taskOutputs.map(o => {
         const content = (o.detail as any)?.content || o.summary || '';
         const agentId = o.dimensions?.agent_id || 'Unknown';
-        return `  ${agentId}: ${content.substring(0, 1000)}`;
-      }).join('\n');
+        const summary = o.summary || content.substring(0, 200);
+        return `  Worker: ${agentId}\n  Summary: ${summary}\n  Full Output: ${content}`;
+      }).join('\n\n');
       
-      taskSummaries.push(`Task: ${task.summary}\n${outputTexts || '  (No outputs yet)'}`);
+      taskDetails.push(`Task: ${task.summary}\nStatus: ${task.dimensions?.status || 'unknown'}\nPriority: ${task.dimensions?.priority || 'medium'}\n\nOutputs:\n${outputDetails || '  (No outputs yet)'}`);
     }
 
-    const taskSummariesText = taskSummaries.join('\n\n');
-    const contextMessage = `All tasks for the goal "${goal.summary}" have been completed. Here are the results:\n\n${taskSummariesText}\n\nPlease provide a comprehensive, natural response to the user summarizing what was accomplished. Include specific details from the task outputs above. Be conversational and helpful.`;
+    const taskDetailsText = taskDetails.join('\n\n---\n\n');
+    
+    // Get user request for context
+    const userRequest = goal.links?.parents?.[0] 
+      ? await blackboardService.findById(goal.links.parents[0])
+      : null;
+    const userRequestText = userRequest && userRequest.type === 'user_request' 
+      ? `Original User Request: ${userRequest.summary}\n\n`
+      : '';
+    
+    const contextMessage = `${userRequestText}All tasks for the goal "${goal.summary}" have been completed. 
+
+Here is the complete blackboard context (same view as the blackboard page):
+
+${blackboardContext}
+
+---
+
+Detailed Task Results:
+
+${taskDetailsText}
+
+---
+
+Please provide a comprehensive, natural response to the user summarizing what was accomplished. Include specific details from all the task outputs above. Be conversational and helpful. Reference specific information from the task outputs (hotel names, prices, dates, recommendations, etc.) rather than just saying "tasks were completed".`;
 
     // Create job for WeSpeaker
     console.log(`[triggerWeSpeakerForGoal] Creating WeSpeaker job for goal ${goalId}`);

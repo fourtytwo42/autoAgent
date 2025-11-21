@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,8 @@ export default function BlackboardViewPage() {
   const [loading, setLoading] = useState(true);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [agentNames, setAgentNames] = useState<Record<string, string>>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef<number>(0);
 
   useEffect(() => {
     fetchAllItems();
@@ -40,11 +42,27 @@ export default function BlackboardViewPage() {
     
     // Poll for updates every 3 seconds
     const interval = setInterval(() => {
+      // Save scroll position before update
+      if (scrollContainerRef.current) {
+        scrollPositionRef.current = scrollContainerRef.current.scrollTop;
+      }
       fetchAllItems();
     }, 3000);
     
     return () => clearInterval(interval);
   }, []);
+
+  // Restore scroll position after items update
+  useEffect(() => {
+    if (scrollContainerRef.current && scrollPositionRef.current > 0) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollPositionRef.current;
+        }
+      });
+    }
+  }, [items]);
 
   const fetchAgentNames = async () => {
     try {
@@ -70,10 +88,23 @@ export default function BlackboardViewPage() {
 
   const fetchAllItems = async () => {
     try {
-      setLoading(true);
+      // Only show loading on initial load
+      if (items.length === 0) {
+        setLoading(true);
+      }
       const response = await fetch('/api/blackboard?limit=1000&order_by=created_at&order_direction=desc');
       const data = await response.json();
-      setItems(data.items || []);
+      const newItems = data.items || [];
+      
+      // Only update if items actually changed (by comparing IDs)
+      const currentIds = new Set(items.map(item => item.id));
+      const newIds = new Set(newItems.map((item: BlackboardItem) => item.id));
+      const idsChanged = currentIds.size !== newIds.size || 
+        Array.from(newIds).some(id => !currentIds.has(id));
+      
+      if (idsChanged || items.length === 0) {
+        setItems(newItems);
+      }
     } catch (error) {
       console.error('Error fetching blackboard items:', error);
     } finally {
