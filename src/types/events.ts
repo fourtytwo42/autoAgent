@@ -2,12 +2,14 @@ export type EventType =
   | 'goal_created'
   | 'task_created'
   | 'task_updated'
+  | 'task_completed'
   | 'agent_run'
   | 'judgement_written'
   | 'agent_proposal_created'
   | 'architecture_vote'
   | 'model_updated'
   | 'agent_updated'
+  | 'user_query_requested'
   | 'error';
 
 export interface Event {

@@ -120,7 +120,7 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
     }
 
     await eventsRepository.create({
-      type: 'task_updated',
+      type: 'task_completed',
       blackboard_item_id: taskId,
       data: {
         status: 'completed',
@@ -183,7 +183,7 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
 /**
  * Trigger WeSpeaker to provide final response when goal tasks are complete
  */
-async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string): Promise<void> {
+export async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string): Promise<void> {
   try {
     console.log(`[triggerWeSpeakerForGoal] Starting for goal ${goalId}, completed task ${completedTaskId}`);
     // Get the goal

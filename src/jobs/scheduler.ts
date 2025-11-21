@@ -61,15 +61,58 @@ export class JobScheduler {
       // Also check tasks that might have outputs but aren't marked as completed
       // This handles cases where assigned_agents wasn't set but outputs exist
       const { checkTaskCompletion } = await import('./processors/taskCompletion');
+      
+      // Check assigned tasks
       const assignedTasks = await blackboardService.query({
         type: 'task',
         dimensions: { status: 'assigned' },
         limit: 10,
       });
       
-      for (const task of assignedTasks) {
+      // Check working tasks
+      const workingTasks = await blackboardService.query({
+        type: 'task',
+        dimensions: { status: 'working' },
+        limit: 10,
+      });
+      
+      const tasksToCheck = [...assignedTasks, ...workingTasks];
+      
+      for (const task of tasksToCheck) {
         // Re-check completion in case outputs exist but task wasn't marked complete
         await checkTaskCompletion(task.id);
+      }
+      
+      // Also periodically check all goals to see if all tasks are complete
+      // This ensures WeSpeaker is triggered even if a task completion check was missed
+      // Only check every 10th cycle to avoid too much overhead (roughly every 50 seconds)
+      if (Math.random() < 0.1) {
+        const openGoals = await blackboardService.query({
+          type: 'goal',
+          dimensions: { status: 'open' },
+          limit: 10,
+        });
+        
+        for (const goal of openGoals) {
+          const allTasks = await blackboardService.findChildren(goal.id);
+          const taskItems = allTasks.filter(t => t.type === 'task');
+          
+          if (taskItems.length > 0) {
+            const allTasksComplete = taskItems.every(t => 
+              t.dimensions?.status === 'completed'
+            );
+            
+            if (allTasksComplete) {
+              console.log(`[Scheduler] All tasks complete for goal ${goal.id}, triggering WeSpeaker`);
+              const { triggerWeSpeakerForGoal } = await import('./processors/taskCompletion');
+              // Use the last completed task ID (or first task if we can't determine)
+              const lastTaskId = taskItems[taskItems.length - 1]?.id || taskItems[0]?.id;
+              if (lastTaskId) {
+                await triggerWeSpeakerForGoal(goal.id, lastTaskId);
+              }
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Error processing pending tasks:', error);
