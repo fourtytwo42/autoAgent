@@ -22,7 +22,7 @@ export abstract class BaseProvider implements IModelProvider {
 
   abstract supportsModality(modality: string): boolean;
 
-  abstract isAvailable(): boolean;
+  abstract isAvailable(): boolean | Promise<boolean>;
 
   protected async withTimeout<T>(promise: Promise<T>, timeoutMs: number = this.timeout): Promise<T> {
     return Promise.race([

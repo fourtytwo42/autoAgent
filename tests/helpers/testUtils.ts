@@ -41,7 +41,7 @@ export function mockDate(date: Date | string | number): () => void {
       if (args.length === 0) {
         super(dateValue);
       } else {
-        super(...args);
+        super(...(args as [number, number, number]));
       }
     }
     
@@ -56,12 +56,7 @@ export function mockDate(date: Date | string | number): () => void {
   };
 }
 
-// Factory functions for test data
-export const testFactories = {
-  model: createTestModel,
-  agent: createTestAgent,
-  blackboardItem: createTestBlackboardItem,
-};
+// Factory functions for test data are in fixtures/
 
 // Custom assertion helpers
 export function assertIsUUID(value: string): void {

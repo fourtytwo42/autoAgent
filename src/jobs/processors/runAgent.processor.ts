@@ -2,6 +2,11 @@ import { BaseJobProcessor } from './base.processor';
 import { Job, JobType, RunAgentJobPayload } from '@/src/types/jobs';
 import { agentRegistry } from '@/src/agents/registry';
 import { WeSpeakerAgent } from '@/src/agents/agents/wespeaker.agent';
+import { TaskPlannerAgent } from '@/src/agents/agents/taskPlanner.agent';
+import { JudgeAgent } from '@/src/agents/agents/judge.agent';
+import { StewardAgent } from '@/src/agents/agents/steward.agent';
+import { ModelEvaluatorAgent } from '@/src/agents/agents/modelEvaluator.agent';
+import { ConsensusAgent } from '@/src/agents/agents/consensus.agent';
 import { blackboardService } from '@/src/blackboard/service';
 import { agentMetricsRepository } from '@/src/db/repositories/agentMetrics.repository';
 import { eventsRepository } from '@/src/db/repositories/events.repository';
@@ -27,6 +32,21 @@ export class RunAgentProcessor extends BaseJobProcessor {
     switch (payload.agent_id) {
       case 'WeSpeaker':
         agent = new WeSpeakerAgent(agentType);
+        break;
+      case 'TaskPlanner':
+        agent = new TaskPlannerAgent(agentType);
+        break;
+      case 'Judge':
+        agent = new JudgeAgent(agentType);
+        break;
+      case 'Steward':
+        agent = new StewardAgent(agentType);
+        break;
+      case 'ModelEvaluator':
+        agent = new ModelEvaluatorAgent(agentType);
+        break;
+      case 'ConsensusAgent':
+        agent = new ConsensusAgent(agentType);
         break;
       default:
         throw new Error(`Unknown agent type: ${payload.agent_id}`);

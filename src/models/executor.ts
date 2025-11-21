@@ -1,13 +1,17 @@
 import { ModelConfig, ChatMessage, ChatMessageWithImages, ModelExecutionOptions, ModelExecutor, ImageResult } from '@/src/types/models';
 import { IModelProvider } from './provider.interface';
 import { OpenAIProvider } from './providers/openai.provider';
+import { AnthropicProvider } from './providers/anthropic.provider';
+import { GroqProvider } from './providers/groq.provider';
+import { OllamaProvider } from './providers/ollama.provider';
+import { LMStudioProvider } from './providers/lmstudio.provider';
 import { MockModelProvider } from './providers/mock.provider';
 import { shouldUseMockProviders } from '@/src/config/models';
 
 export class UnifiedModelExecutor implements ModelExecutor {
   private providers: Map<string, IModelProvider> = new Map();
 
-  private getProvider(model: ModelConfig): IModelProvider {
+  private async getProvider(model: ModelConfig): Promise<IModelProvider> {
     const useMock = shouldUseMockProviders();
 
     if (useMock) {
@@ -24,6 +28,18 @@ export class UnifiedModelExecutor implements ModelExecutor {
         case 'openai':
           this.providers.set(providerKey, new OpenAIProvider());
           break;
+        case 'anthropic':
+          this.providers.set(providerKey, new AnthropicProvider());
+          break;
+        case 'groq':
+          this.providers.set(providerKey, new GroqProvider());
+          break;
+        case 'ollama':
+          this.providers.set(providerKey, new OllamaProvider());
+          break;
+        case 'lmstudio':
+          this.providers.set(providerKey, new LMStudioProvider());
+          break;
         default:
           // For other providers, fall back to mock for now
           if (!this.providers.has('mock')) {
@@ -34,7 +50,20 @@ export class UnifiedModelExecutor implements ModelExecutor {
     }
 
     const provider = this.providers.get(providerKey);
-    if (!provider || !provider.isAvailable()) {
+    if (!provider) {
+      // Fall back to mock if provider not found
+      if (!this.providers.has('mock')) {
+        this.providers.set('mock', new MockModelProvider());
+      }
+      return this.providers.get('mock')!;
+    }
+
+    // Check availability (async for local providers)
+    const isAvailable = typeof provider.isAvailable === 'function' 
+      ? await provider.isAvailable() 
+      : provider.isAvailable();
+    
+    if (!isAvailable) {
       // Fall back to mock if provider unavailable
       if (!this.providers.has('mock')) {
         this.providers.set('mock', new MockModelProvider());
@@ -50,7 +79,7 @@ export class UnifiedModelExecutor implements ModelExecutor {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): Promise<string> {
-    const provider = this.getProvider(model);
+    const provider = await this.getProvider(model);
     return provider.generateText(model, messages, options);
   }
 
@@ -59,7 +88,7 @@ export class UnifiedModelExecutor implements ModelExecutor {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): AsyncIterable<string> {
-    const provider = this.getProvider(model);
+    const provider = await this.getProvider(model);
     yield* provider.generateTextStream(model, messages, options);
   }
 
@@ -68,7 +97,7 @@ export class UnifiedModelExecutor implements ModelExecutor {
     messages: ChatMessageWithImages[],
     options?: ModelExecutionOptions
   ): Promise<string> {
-    const provider = this.getProvider(model);
+    const provider = await this.getProvider(model);
     if (!provider.generateVision) {
       throw new Error(`Provider ${model.provider} does not support vision`);
     }
@@ -80,7 +109,7 @@ export class UnifiedModelExecutor implements ModelExecutor {
     prompt: string,
     options?: { size?: string }
   ): Promise<ImageResult> {
-    const provider = this.getProvider(model);
+    const provider = await this.getProvider(model);
     if (!provider.generateImage) {
       throw new Error(`Provider ${model.provider} does not support image generation`);
     }

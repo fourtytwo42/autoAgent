@@ -26,6 +26,6 @@ export interface IModelProvider {
   ): Promise<ImageResult>;
 
   supportsModality(modality: string): boolean;
-  isAvailable(): boolean;
+  isAvailable(): boolean | Promise<boolean>;
 }
 

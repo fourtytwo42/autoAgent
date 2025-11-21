@@ -2,9 +2,13 @@ import { BlackboardItem } from '@/src/types/blackboard';
 import { blackboardService } from '@/src/blackboard/service';
 import { agentRegistry } from '@/src/agents/registry';
 import { WeSpeakerAgent } from '@/src/agents/agents/wespeaker.agent';
+import { TaskPlannerAgent } from '@/src/agents/agents/taskPlanner.agent';
+import { JudgeAgent } from '@/src/agents/agents/judge.agent';
+import { StewardAgent } from '@/src/agents/agents/steward.agent';
 import { modelRouter } from '@/src/models/router';
 import { jobQueue } from '@/src/jobs/queue';
 import { eventsRepository } from '@/src/db/repositories/events.repository';
+import { interestMatcher } from '@/src/agents/matcher';
 
 export interface UserRequest {
   message: string;
@@ -53,6 +57,12 @@ export class Orchestrator {
       },
     });
 
+    // Run Steward to prioritize goals (async, don't wait)
+    this.runStewardAsync();
+
+    // Run TaskPlanner to create tasks for this goal
+    await this.planTasksForGoal(goal.id, goal.summary);
+
     // Find WeSpeaker agent
     const agentType = await agentRegistry.getAgent('WeSpeaker');
     if (!agentType) {
@@ -86,6 +96,20 @@ export class Orchestrator {
       output.metadata
     );
 
+    // Schedule Judge to evaluate the output
+    await jobQueue.createRunAgentJob(
+      'Judge',
+      {
+        agent_output_id: agentOutput.id,
+        agent_output: output.output,
+        task_summary: goal.summary,
+        agent_id: output.agent_id,
+      }
+    );
+
+    // Get tasks created for this goal
+    const tasks = await blackboardService.findChildren(goal.id);
+
     // Log event
     await eventsRepository.create({
       type: 'agent_run',
@@ -100,6 +124,7 @@ export class Orchestrator {
     return {
       response: output.output,
       goalId: goal.id,
+      taskIds: tasks.map((t) => t.id),
       metadata: {
         agent_id: output.agent_id,
         model_id: output.model_id,
@@ -122,6 +147,9 @@ export class Orchestrator {
         source: 'user',
       }
     );
+
+    // Run TaskPlanner async
+    this.planTasksForGoal(goal.id, goal.summary).catch(console.error);
 
     // Find WeSpeaker agent
     const agentType = await agentRegistry.getAgent('WeSpeaker');
@@ -147,7 +175,64 @@ export class Orchestrator {
       },
     });
   }
+
+  private async planTasksForGoal(goalId: string, goalSummary: string): Promise<void> {
+    // Check if tasks already exist for this goal
+    const existingTasks = await blackboardService.findChildren(goalId);
+    if (existingTasks.length > 0) {
+      return; // Tasks already exist
+    }
+
+    // Create job for TaskPlanner
+    await jobQueue.createRunAgentJob(
+      'TaskPlanner',
+      {
+        goal_id: goalId,
+        goal_summary: goalSummary,
+      }
+    );
+  }
+
+  private async runStewardAsync(): Promise<void> {
+    // Run Steward periodically to manage goal priorities
+    // This runs asynchronously and doesn't block the user request
+    jobQueue.createRunAgentJob('Steward', {}).catch(console.error);
+  }
+
+  async processTask(taskId: string): Promise<void> {
+    const task = await blackboardService.findById(taskId);
+    if (!task || task.type !== 'task') {
+      throw new Error(`Task ${taskId} not found`);
+    }
+
+    // Find matching agents
+    const agents = await agentRegistry.getEnabledAgents();
+    const matches = interestMatcher.match(agents, task);
+
+    if (matches.length === 0) {
+      throw new Error(`No agents match task ${taskId}`);
+    }
+
+    // Use best matching agent
+    const bestMatch = matches[0];
+
+    // Create job to run agent
+    await jobQueue.createRunAgentJob(
+      bestMatch.agent.id,
+      {
+        task_id: taskId,
+        goal_id: task.links.parents?.[0],
+        context: {
+          task_summary: task.summary,
+          task_dimensions: task.dimensions,
+        },
+      },
+      {
+        temperature: 0.7,
+        maxTokens: 2000,
+      }
+    );
+  }
 }
 
 export const orchestrator = new Orchestrator();
-

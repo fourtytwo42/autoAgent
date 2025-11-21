@@ -7,7 +7,12 @@ export abstract class BaseAgent {
   constructor(protected agentType: AgentType) {}
 
   abstract execute(context: AgentExecutionContext): Promise<AgentOutput>;
-  abstract *executeStream(context: AgentExecutionContext): AsyncIterable<string>;
+  
+  async *executeStream(context: AgentExecutionContext): AsyncIterable<string> {
+    // Default implementation: execute and yield the full result
+    const result = await this.execute(context);
+    yield result.output;
+  }
 
   protected async selectModel(requiredModalities?: string[]): Promise<ModelConfig> {
     const model = await modelRouter.selectModel({

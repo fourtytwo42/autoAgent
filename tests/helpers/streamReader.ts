@@ -32,10 +32,11 @@ export class SSEStreamReader {
       };
 
       this.eventSource.onerror = (error) => {
-        this.errors.push(error as Error);
+        const errorObj = new Error('SSE connection error');
+        this.errors.push(errorObj);
         clearTimeout(timer);
         this.close();
-        reject(error);
+        reject(errorObj);
       };
 
       // For tests, we'll need to simulate or mock EventSource

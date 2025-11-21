@@ -75,6 +75,20 @@ export class EventsRepository {
     return result.rows.map((row) => this.mapRow(row));
   }
 
+  async findRecent(filters: {
+    type?: EventType;
+    agent_id?: string;
+    model_id?: string;
+    limit?: number;
+  }): Promise<EventRow[]> {
+    return this.query({
+      type: filters.type,
+      agent_id: filters.agent_id,
+      model_id: filters.model_id,
+      limit: filters.limit || 100,
+    });
+  }
+
   async query(filters: {
     type?: EventType;
     agent_id?: string;

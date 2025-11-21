@@ -6,7 +6,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
-    teardownFiles: ['./tests/teardown.ts'],
+    // teardownFiles: ['./tests/teardown.ts'], // Not supported in this version
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
