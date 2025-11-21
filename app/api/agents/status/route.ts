@@ -6,15 +6,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get all running jobs
+    // Get all running and pending jobs
     const runningJobs = await jobQueue.getRunningJobs(100);
+    const pendingJobs = await jobQueue.getPendingJobs(100);
+    const allActiveJobs = [...runningJobs, ...pendingJobs];
     
     // Get all agents
     const agents = await agentRegistry.getAllAgents();
     
     // Map agent status
     const agentStatus = agents.map((agent) => {
-      const agentJobs = runningJobs.filter(
+      const agentJobs = allActiveJobs.filter(
         (job) => job.payload && (job.payload as any).agent_id === agent.id
       );
 
@@ -35,11 +37,17 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const runningCount = agentJobs.filter(j => j.status === 'running').length;
+      const pendingCount = agentJobs.filter(j => j.status === 'pending').length;
+      
       return {
         agent_id: agent.id,
-        is_working: agentJobs.length > 0,
+        is_working: runningCount > 0,
+        is_pending: pendingCount > 0,
         current_work: currentWork,
         job_count: agentJobs.length,
+        running_jobs: runningCount,
+        pending_jobs: pendingCount,
       };
     });
 

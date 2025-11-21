@@ -131,7 +131,7 @@ export class TaskManager {
     for (const match of agentsToAssign) {
       const webEnabled = task.dimensions?.web_enabled ?? false;
       // Create job to run agent
-      await jobQueue.createRunAgentJob(
+      const job = await jobQueue.createRunAgentJob(
         match.agent.id,
         {
           task_id: taskId,
@@ -146,6 +146,7 @@ export class TaskManager {
         }
       );
 
+      console.log(`Created job ${job.id} for agent ${match.agent.id} on task ${taskId}: ${task.summary.substring(0, 50)}`);
       assignedAgentIds.push(match.agent.id);
 
       await eventsRepository.create({

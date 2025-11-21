@@ -45,41 +45,106 @@ export class Orchestrator {
       },
     });
 
-    // Step 1: Use GoalRefiner to refine the user request into a proper goal
-    const goalRefinerType = await agentRegistry.getAgent('GoalRefiner');
-    if (!goalRefinerType) {
-      throw new Error('GoalRefiner agent not found');
-    }
-    const goalRefiner = new GoalRefinerAgent(goalRefinerType);
-    
-    const refinedGoalOutput = await goalRefiner.execute({
-      agent_id: 'GoalRefiner',
-      model_id: '',
-      input: {
-        user_request: request.message,
-        user_request_id: userRequest.id,
-        web_enabled: webEnabled,
-      },
-      options: {
-        temperature: 0.6,
-        maxTokens: 500,
-      },
+    // Check if there's a recent open goal (within last 30 minutes) to link this as a follow-up
+    const recentGoals = await blackboardService.query({
+      type: 'goal',
+      dimensions: { status: 'open' },
+      order_by: 'created_at',
+      order_direction: 'desc',
+      limit: 5,
     });
 
-    // Extract refined goal text (clean up any markdown or formatting)
-    const refinedGoalText = refinedGoalOutput.output.trim().replace(/^["']|["']$/g, '');
+    let goal: BlackboardItem;
+    let isFollowUp = false;
 
-    // Step 2: Create goal from refined output
-    const goal = await blackboardService.createGoal(
-      refinedGoalText,
-      userRequest.id,
-      {
-        status: 'open',
-        priority: 'high',
-        source: 'user',
-        web_enabled: webEnabled,
-      }
+    // Check if any recent goal is related (within 30 minutes)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const recentOpenGoal = recentGoals.find(
+      g => new Date(g.created_at || 0) > thirtyMinutesAgo
     );
+
+    if (recentOpenGoal) {
+      // This is a follow-up to an existing goal
+      isFollowUp = true;
+      goal = recentOpenGoal;
+      
+      // Link this user request to the existing goal
+      await blackboardService.addLink(userRequest.id, goal.id, 'child');
+      
+      // Get conversation history for context
+      const conversationHistory = await this.getConversationHistory(goal.id);
+      
+      // Step 1: Use GoalRefiner to refine the user request, including context
+      const goalRefinerType = await agentRegistry.getAgent('GoalRefiner');
+      if (!goalRefinerType) {
+        throw new Error('GoalRefiner agent not found');
+      }
+      const goalRefiner = new GoalRefinerAgent(goalRefinerType);
+      
+      const contextMessage = conversationHistory.length > 0
+        ? `Previous conversation:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}\n\nNew user message: ${request.message}\n\nThis is a follow-up to the existing goal: ${goal.summary}`
+        : `New user message: ${request.message}\n\nThis is a follow-up to the existing goal: ${goal.summary}`;
+      
+      const refinedGoalOutput = await goalRefiner.execute({
+        agent_id: 'GoalRefiner',
+        model_id: '',
+        input: {
+          user_request: contextMessage,
+          user_request_id: userRequest.id,
+          web_enabled: webEnabled,
+        },
+        options: {
+          temperature: 0.6,
+          maxTokens: 500,
+        },
+      });
+
+      // Update goal summary with refined text if it's significantly different
+      const refinedGoalText = refinedGoalOutput.output.trim().replace(/^["']|["']$/g, '');
+      if (refinedGoalText.length > 20 && refinedGoalText !== goal.summary) {
+        await blackboardService.update(goal.id, {
+          summary: refinedGoalText,
+        });
+        goal.summary = refinedGoalText;
+      }
+    } else {
+      // This is a new goal
+      // Step 1: Use GoalRefiner to refine the user request into a proper goal
+      const goalRefinerType = await agentRegistry.getAgent('GoalRefiner');
+      if (!goalRefinerType) {
+        throw new Error('GoalRefiner agent not found');
+      }
+      const goalRefiner = new GoalRefinerAgent(goalRefinerType);
+      
+      const refinedGoalOutput = await goalRefiner.execute({
+        agent_id: 'GoalRefiner',
+        model_id: '',
+        input: {
+          user_request: request.message,
+          user_request_id: userRequest.id,
+          web_enabled: webEnabled,
+        },
+        options: {
+          temperature: 0.6,
+          maxTokens: 500,
+        },
+      });
+
+      // Extract refined goal text (clean up any markdown or formatting)
+      const refinedGoalText = refinedGoalOutput.output.trim().replace(/^["']|["']$/g, '');
+
+      // Step 2: Create goal from refined output
+      goal = await blackboardService.createGoal(
+        refinedGoalText,
+        userRequest.id,
+        {
+          status: 'open',
+          priority: 'high',
+          source: 'user',
+          web_enabled: webEnabled,
+        }
+      );
+    }
 
     // Log event
     await eventsRepository.create({
@@ -93,27 +158,33 @@ export class Orchestrator {
     // Run Steward to prioritize goals (async, don't wait)
     this.runStewardAsync();
 
-    // Step 3: Run TaskPlanner to create tasks for this goal and wait for completion
-    const taskPlannerJob = await jobQueue.createRunAgentJob(
-      'TaskPlanner',
-      {
-        goal_id: goal.id,
-        goal_summary: goal.summary,
-        web_enabled: webEnabled,
-      }
-    );
+    // Step 3: Run TaskPlanner to create tasks for this goal (only if new goal, not follow-up)
+    let tasks: BlackboardItem[] = [];
+    if (!isFollowUp) {
+      const taskPlannerJob = await jobQueue.createRunAgentJob(
+        'TaskPlanner',
+        {
+          goal_id: goal.id,
+          goal_summary: goal.summary,
+          web_enabled: webEnabled,
+        }
+      );
 
-    // Process TaskPlanner job immediately and wait for it to complete
-    await jobScheduler.processJobImmediately(taskPlannerJob.id);
-    
-    // Wait for tasks to be created (poll with timeout)
-    let tasks = await blackboardService.findChildren(goal.id);
-    let attempts = 0;
-    const maxAttempts = 20; // 10 seconds max wait
-    while (tasks.length === 0 && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Process TaskPlanner job immediately and wait for it to complete
+      await jobScheduler.processJobImmediately(taskPlannerJob.id);
+      
+      // Wait for tasks to be created (poll with timeout)
       tasks = await blackboardService.findChildren(goal.id);
-      attempts++;
+      let attempts = 0;
+      const maxAttempts = 20; // 10 seconds max wait
+      while (tasks.length === 0 && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        tasks = await blackboardService.findChildren(goal.id);
+        attempts++;
+      }
+    } else {
+      // For follow-ups, get existing tasks
+      tasks = await blackboardService.findChildren(goal.id);
     }
 
     // Step 4: Execute tasks (create jobs for Worker agents)
@@ -130,11 +201,17 @@ export class Orchestrator {
     // Create agent instance
     const agent = new WeSpeakerAgent(agentType);
 
-    // Build context for WeSpeaker including task information
-    const taskSummaries = tasks.map(t => `- ${t.summary}`).join('\n');
-    const contextMessage = tasks.length > 0
-      ? `${request.message}\n\nI've broken this down into ${tasks.length} tasks:\n${taskSummaries}\n\nPlease provide a helpful response to the user about what we're planning to do.`
-      : request.message;
+    // Get conversation history for context
+    const conversationHistory = await this.getConversationHistory(goal.id);
+    
+    // Build context for WeSpeaker - don't list tasks, just let it know work is happening
+    const historyContext = conversationHistory.length > 0
+      ? `\n\nPrevious conversation:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}`
+      : '';
+    
+    const contextMessage = isFollowUp
+      ? `${request.message}${historyContext}\n\nThis is a follow-up to the goal: ${goal.summary}. Tasks are being worked on in the background. Please provide a helpful response that acknowledges the previous conversation and addresses the new request naturally, without listing out tasks.`
+      : `${request.message}${historyContext}\n\nTasks are being created and worked on in the background. Please provide a natural, conversational response to the user without listing tasks or explaining what needs to be done. Just acknowledge their request and let them know you're working on it.`;
 
     // Execute WeSpeaker to get response
     const output = await agent.execute({
@@ -270,6 +347,57 @@ export class Orchestrator {
         web_enabled: options?.web_enabled,
       }
     );
+  }
+
+  private async getConversationHistory(goalId: string): Promise<Array<{ role: string; content: string }>> {
+    // Get all user requests and agent outputs related to this goal
+    const goal = await blackboardService.findById(goalId);
+    if (!goal) {
+      return [];
+    }
+
+    // Get all user requests linked to this goal (via parent chain)
+    const userRequests = await blackboardService.query({
+      type: 'user_request',
+      order_by: 'created_at',
+      order_direction: 'asc',
+      limit: 20,
+    });
+
+    // Get all WeSpeaker outputs
+    const agentOutputs = await blackboardService.query({
+      type: 'agent_output',
+      dimensions: {
+        agent_id: 'WeSpeaker',
+      },
+      order_by: 'created_at',
+      order_direction: 'asc',
+      limit: 20,
+    });
+
+    // Filter to only include items related to this goal (within last hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const relatedItems = [...userRequests, ...agentOutputs]
+      .filter(item => new Date(item.created_at || 0) > oneHourAgo)
+      .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+
+    // Convert to conversation format
+    return relatedItems.map(item => {
+      let content = item.summary || '';
+      
+      // For agent outputs, get the actual content from detail.content
+      if (item.type === 'agent_output' && item.detail && typeof item.detail === 'object') {
+        const detail = item.detail as any;
+        if (detail.content && typeof detail.content === 'string') {
+          content = detail.content;
+        }
+      }
+      
+      return {
+        role: item.type === 'user_request' ? 'user' : 'assistant',
+        content: content,
+      };
+    });
   }
 
   private async runStewardAsync(): Promise<void> {

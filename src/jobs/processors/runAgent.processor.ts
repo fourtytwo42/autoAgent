@@ -100,28 +100,43 @@ export class RunAgentProcessor extends BaseJobProcessor {
 
     // Save agent output to blackboard if task_id provided
     if (payload.task_id) {
-      const agentOutput = await blackboardService.createAgentOutput(
-        output.agent_id,
-        output.model_id,
-        payload.task_id,
-        output.output,
-        output.metadata
-      );
+      try {
+        const agentOutput = await blackboardService.createAgentOutput(
+          output.agent_id,
+          output.model_id,
+          payload.task_id,
+          output.output,
+          output.metadata
+        );
 
-      // Schedule Judge to evaluate this output
-      await jobQueue.createRunAgentJob(
-        'Judge',
-        {
-          agent_output_id: agentOutput.id,
-          agent_output: output.output,
-          task_id: payload.task_id,
-          agent_id: output.agent_id,
-          web_enabled: payload.context?.web_enabled ?? false,
+        // Schedule Judge to evaluate this output
+        await jobQueue.createRunAgentJob(
+          'Judge',
+          {
+            agent_output_id: agentOutput.id,
+            agent_output: output.output,
+            task_id: payload.task_id,
+            agent_id: output.agent_id,
+            web_enabled: payload.context?.web_enabled ?? false,
+          }
+        );
+
+        // Check if all agents working on this task have completed
+        const taskCompleted = await checkTaskCompletion(payload.task_id);
+        
+        if (!taskCompleted) {
+          // Log that task is still pending (might be waiting for other agents)
+          console.log(`Task ${payload.task_id} still pending - waiting for other agents or dependencies`);
         }
-      );
-
-      // Check if all agents working on this task have completed
-      await checkTaskCompletion(payload.task_id);
+      } catch (error) {
+        console.error(`Error saving agent output for task ${payload.task_id}:`, error);
+        // Still try to check task completion even if output save failed
+        try {
+          await checkTaskCompletion(payload.task_id);
+        } catch (checkError) {
+          console.error(`Error checking task completion for ${payload.task_id}:`, checkError);
+        }
+      }
     }
 
     // Update agent metrics
@@ -183,7 +198,26 @@ export class RunAgentProcessor extends BaseJobProcessor {
         for (const rawTask of parsed.tasks) {
           if (!rawTask) continue;
           const summary = (rawTask.summary || rawTask.description || '').trim();
-          if (summary.length < 5) continue;
+          if (summary.length < 10) continue; // Require at least 10 chars
+          
+          // Filter out explanation text, headers, and non-actionable fragments
+          const summaryLower = summary.toLowerCase();
+          if (
+            summaryLower.startsWith('priority') ||
+            summaryLower.startsWith('task ') && summaryLower.includes('are') ||
+            summaryLower.includes('rationale') ||
+            summaryLower.includes('can be deferred') ||
+            summaryLower.includes('can run concurrently') ||
+            summaryLower.includes('final checks') ||
+            summaryLower.includes('parallel tasks') ||
+            summaryLower.includes('enhance quality') ||
+            summaryLower.includes('essential for') ||
+            summaryLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:"
+            summary.length < 20 && !summaryLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish)\b/i)
+          ) {
+            console.log(`Skipping invalid task fragment: "${summary}"`);
+            continue;
+          }
 
           const priorityLower = (rawTask.priority || '').toString().toLowerCase();
           let taskPriority: 'high' | 'medium' | 'low' = 'medium';
@@ -327,9 +361,29 @@ export class RunAgentProcessor extends BaseJobProcessor {
               }
             }
             
+            // Filter out explanation text, headers, and non-actionable fragments
+            const descLower = cleanDesc.toLowerCase();
+            if (
+              descLower.startsWith('priority') ||
+              descLower.startsWith('task ') && descLower.includes('are') ||
+              descLower.includes('rationale') ||
+              descLower.includes('can be deferred') ||
+              descLower.includes('can run concurrently') ||
+              descLower.includes('final checks') ||
+              descLower.includes('parallel tasks') ||
+              descLower.includes('enhance quality') ||
+              descLower.includes('essential for') ||
+              descLower.match(/^[a-z\s]+:$/) || // Headers like "Priority Rationale:"
+              cleanDesc.length < 20 || // Too short to be a real task
+              !descLower.match(/\b(create|find|research|write|build|develop|design|plan|organize|prepare|gather|collect|analyze|evaluate|implement|execute|complete|finish|identify|recommend|provide|list|outline|draft|compile|verify|check|confirm)\b/i) // Must contain action verb
+            ) {
+              console.log(`Skipping invalid task fragment: "${cleanDesc}"`);
+              continue;
+            }
+            
             // Create a unique key to avoid duplicates
             const taskKey = cleanDesc.substring(0, 100).toLowerCase();
-            if (cleanDesc.length > 10 && cleanDesc.length < 500 && !seenTasks.has(taskKey)) {
+            if (cleanDesc.length >= 20 && cleanDesc.length < 500 && !seenTasks.has(taskKey)) {
               seenTasks.add(taskKey);
               tasks.push({
                 summary: cleanDesc.substring(0, 500),
