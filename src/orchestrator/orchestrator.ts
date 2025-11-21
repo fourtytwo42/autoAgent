@@ -209,7 +209,7 @@ export class Orchestrator {
       
       if (isStatusQuery) {
         // Get all task outputs
-        const allOutputs = [];
+        const allOutputs: any[] = [];
         for (const task of taskItems) {
           const outputs = await blackboardService.query({
             type: 'agent_output',
@@ -278,7 +278,7 @@ export class Orchestrator {
       }
     );
 
-    // Tasks already retrieved above
+    // Tasks already retrieved above (existingTasks and taskItems defined earlier)
 
     // Log event
     await eventsRepository.create({
@@ -290,10 +290,6 @@ export class Orchestrator {
         latency_ms: output.latency_ms,
       },
     });
-
-    // Get tasks that may have been created by TaskPlanner (if any exist yet)
-    const existingTasks = await blackboardService.findChildren(goal.id);
-    const taskItems = existingTasks.filter(t => t.type === 'task');
 
     return {
       response: output.output,
