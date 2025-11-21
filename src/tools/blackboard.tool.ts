@@ -15,8 +15,7 @@ export class BlackboardTool extends BaseTool {
         properties: {
           query_type: {
             type: 'string',
-            enum: ['by_id', 'by_type', 'by_goal', 'by_task', 'related_to'],
-            description: 'Type of query to perform',
+            description: 'Type of query to perform: by_id, by_type, by_goal, by_task, or related_to',
           },
           item_id: {
             type: 'string',
@@ -24,8 +23,7 @@ export class BlackboardTool extends BaseTool {
           },
           item_type: {
             type: 'string',
-            enum: ['user_request', 'goal', 'task', 'agent_output', 'judgement', 'user_query_request', 'user_response'],
-            description: 'Type of items to retrieve (for by_type queries)',
+            description: 'Type of items to retrieve (for by_type queries): user_request, goal, task, agent_output, judgement, user_query_request, or user_response',
           },
           goal_id: {
             type: 'string',
