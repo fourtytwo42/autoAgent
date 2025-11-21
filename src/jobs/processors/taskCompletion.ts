@@ -153,13 +153,23 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
       // Check if all tasks for this goal are complete
       const allTasks = await blackboardService.findChildren(goalId);
       const taskItems = allTasks.filter(t => t.type === 'task');
+      
+      console.log(`[checkTaskCompletion] Goal ${goalId} has ${taskItems.length} tasks. Checking completion status...`);
+      const taskStatuses = taskItems.map(t => ({ id: t.id, status: t.dimensions?.status, summary: t.summary.substring(0, 50) }));
+      console.log(`[checkTaskCompletion] Task statuses: ${JSON.stringify(taskStatuses)}`);
+      
       const allTasksComplete = taskItems.every(t => 
         t.dimensions?.status === 'completed'
       );
+      
+      console.log(`[checkTaskCompletion] All tasks complete for goal ${goalId}: ${allTasksComplete}`);
 
-      if (allTasksComplete) {
+      if (allTasksComplete && taskItems.length > 0) {
+        console.log(`[checkTaskCompletion] Triggering WeSpeaker for goal ${goalId} with ${taskItems.length} completed tasks`);
         // All tasks complete - trigger WeSpeaker to provide final response
         await triggerWeSpeakerForGoal(goalId, taskId);
+      } else if (taskItems.length === 0) {
+        console.log(`[checkTaskCompletion] No tasks found for goal ${goalId}, skipping WeSpeaker trigger`);
       }
     }
 
@@ -174,11 +184,14 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
  */
 async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string): Promise<void> {
   try {
+    console.log(`[triggerWeSpeakerForGoal] Starting for goal ${goalId}, completed task ${completedTaskId}`);
     // Get the goal
     const goal = await blackboardService.findById(goalId);
     if (!goal) {
+      console.error(`[triggerWeSpeakerForGoal] Goal ${goalId} not found`);
       return;
     }
+    console.log(`[triggerWeSpeakerForGoal] Found goal: ${goal.summary.substring(0, 100)}`);
     const webEnabled = goal.dimensions?.web_enabled ?? false;
 
     // Get all tasks for this goal
@@ -212,6 +225,7 @@ async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string):
     const contextMessage = `All tasks for the goal "${goal.summary}" have been completed.\n\nTasks completed:\n${taskSummaries}\n\nAgent outputs:\n${outputSummaries}\n\nPlease provide a comprehensive summary to the user about what was accomplished.`;
 
     // Create job for WeSpeaker
+    console.log(`[triggerWeSpeakerForGoal] Creating WeSpeaker job for goal ${goalId}`);
     const weSpeakerJob = await jobQueue.createRunAgentJob(
       'WeSpeaker',
       {
@@ -227,10 +241,21 @@ async function triggerWeSpeakerForGoal(goalId: string, completedTaskId: string):
         maxTokens: 20000,
       }
     );
+    
+    console.log(`[triggerWeSpeakerForGoal] Created WeSpeaker job ${weSpeakerJob.id} for goal ${goalId}`);
+    
+    // Try to process immediately
+    try {
+      const { jobScheduler } = await import('@/src/jobs/scheduler');
+      await jobScheduler.processJobImmediately(weSpeakerJob.id);
+      console.log(`[triggerWeSpeakerForGoal] WeSpeaker job ${weSpeakerJob.id} processed immediately`);
+    } catch (error) {
+      console.log(`[triggerWeSpeakerForGoal] WeSpeaker job ${weSpeakerJob.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
 
     // Note: Task cleanup will happen after WeSpeaker completes (handled in processor)
   } catch (error) {
-    console.error('Error triggering WeSpeaker for goal completion:', error);
+    console.error(`[triggerWeSpeakerForGoal] Error triggering WeSpeaker for goal ${goalId}:`, error);
   }
 }
 
