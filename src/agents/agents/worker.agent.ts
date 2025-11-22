@@ -77,7 +77,7 @@ ${taskSummary}
 ${blackboardContext ? `\n**Blackboard Context (same view as the blackboard page - for reference only):**\n${blackboardContext}\n\nRemember: These items are for context only. Focus ONLY on completing YOUR task above.` : ''}
 ${userResponseContext}
 
-You can use tool calls in your JSON output to query the blackboard for more information if needed. See the system prompt for details on the query_blackboard tool.
+**CRITICAL: Complete the task using only your knowledge and training data. Provide actual, complete information - NOT search queries, tool calls, or placeholders. Your "content" field must contain real, detailed information that fully addresses the task.**
 
 Provide a clear, complete response that addresses ONLY the task requirements listed above. Do not include information about other tasks or attempt to complete the entire goal.`,
       },
@@ -168,14 +168,25 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
           // Extract content from JSON - prioritize content field
           output = extractTextFromJson(jsonData);
           
-          // If output is too short or looks like just IDs, log a warning
-          if (output.length < 50 || (output.includes('"ids"') && !output.includes('content'))) {
-            console.warn(`[Worker] Output seems incomplete or contains only IDs. JSON data:`, JSON.stringify(jsonData, null, 2));
+          // Validate that output is actual content, not a search query or placeholder
+          if (!output || output.length < 20 || 
+              (output.trim().startsWith('{') && (output.includes('"query"') || output.includes('"search"'))) ||
+              (output.includes('"query"') && output.length < 100)) {
+            console.warn(`[Worker] Output appears to be a query or placeholder instead of actual content. JSON data:`, JSON.stringify(jsonData, null, 2));
             console.warn(`[Worker] Extracted output:`, output);
-            // Try to get content directly if it exists
-            if (jsonData.content && typeof jsonData.content === 'string' && jsonData.content.length > 10) {
-              output = jsonData.content;
-              console.log(`[Worker] Using content field directly: ${output.substring(0, 100)}...`);
+            
+            // Try to get content directly if it exists and is substantial
+            if (jsonData.content && typeof jsonData.content === 'string' && jsonData.content.length > 50) {
+              // Reject if content is just a query
+              if (!jsonData.content.trim().startsWith('{') || (!jsonData.content.includes('"query"') && !jsonData.content.includes('"search"'))) {
+                output = jsonData.content;
+                console.log(`[Worker] Using content field directly: ${output.substring(0, 100)}...`);
+              } else {
+                console.error(`[Worker] Content field also contains a query, rejecting`);
+                output = null; // Will trigger fallback below
+              }
+            } else {
+              output = null; // Will trigger fallback below
             }
           }
         }
