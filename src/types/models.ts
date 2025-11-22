@@ -24,6 +24,7 @@ export interface ModelExecutionOptions {
   maxTokens?: number;
   streaming?: boolean;
   tools?: ToolDefinition[];
+  web_enabled?: boolean; // Enable web search for supported models (OpenAI GPT-5+)
 }
 
 export interface ToolDefinition {

@@ -48,7 +48,7 @@ export abstract class BaseAgent {
   protected async executeModelCall(
     model: ModelConfig,
     messages: ChatMessage[],
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; web_enabled?: boolean }
   ): Promise<string> {
     return modelExecutor.generateText(model, messages, options);
   }

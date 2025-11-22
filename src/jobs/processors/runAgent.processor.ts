@@ -91,10 +91,15 @@ export class RunAgentProcessor extends BaseJobProcessor {
     }
 
     // Execute agent
+    // Extract web_enabled from context and pass it through
+    const webEnabled = payload.context?.web_enabled === true;
     const context = {
       agent_id: payload.agent_id,
       model_id: payload.model_id || '',
-      input: payload.context || {},
+      input: {
+        ...payload.context,
+        web_enabled: webEnabled, // Ensure web_enabled is passed to agent
+      },
       options: payload.options,
     };
 

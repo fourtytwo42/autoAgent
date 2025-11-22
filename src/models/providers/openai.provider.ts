@@ -23,9 +23,18 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
       throw new Error('OpenAI API key not configured');
     }
 
-    const url = `${this.baseUrl}/chat/completions`;
+    // Check if web search is enabled and model supports it (GPT-5+ OpenAI models)
+    const webEnabled = options?.web_enabled === true;
+    const supportsWebSearch = this.supportsWebSearch(model.name);
+    
+    // Use Responses API for GPT-5+ models when web search is enabled
+    const useResponsesAPI = webEnabled && supportsWebSearch;
+    const url = useResponsesAPI 
+      ? `${this.baseUrl}/responses` 
+      : `${this.baseUrl}/chat/completions`;
 
-    const body = {
+    // Build base body
+    const body: any = {
       model: model.name,
       messages: messages.map((msg) => ({
         role: msg.role,
@@ -35,6 +44,15 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
       max_tokens: options?.maxTokens,
       stream: false,
     };
+
+    // Add tools for Responses API when web search is enabled
+    if (useResponsesAPI) {
+      body.tools = [
+        {
+          type: 'web_search',
+        },
+      ];
+    }
 
     const response = await this.withTimeout(
       fetch(url, {
@@ -54,7 +72,22 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     }
 
     const data = await response.json();
+    
+    // Handle Responses API format
+    if (useResponsesAPI) {
+      // Responses API returns content differently
+      return data.content?.[0]?.text || data.choices?.[0]?.message?.content || '';
+    }
+    
     return data.choices[0]?.message?.content || '';
+  }
+
+  /**
+   * Check if a model supports web search (GPT-5+ models)
+   */
+  private supportsWebSearch(modelName: string): boolean {
+    // GPT-5+ models support web search
+    return modelName.includes('gpt-5') || modelName.includes('gpt-4-turbo') || modelName.includes('gpt-4o');
   }
 
   async *generateTextStream(
@@ -66,9 +99,18 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
       throw new Error('OpenAI API key not configured');
     }
 
-    const url = `${this.baseUrl}/chat/completions`;
+    // Check if web search is enabled and model supports it
+    const webEnabled = options?.web_enabled === true;
+    const supportsWebSearch = this.supportsWebSearch(model.name);
+    
+    // Use Responses API for GPT-5+ models when web search is enabled
+    const useResponsesAPI = webEnabled && supportsWebSearch;
+    const url = useResponsesAPI 
+      ? `${this.baseUrl}/responses` 
+      : `${this.baseUrl}/chat/completions`;
 
-    const body = {
+    // Build base body
+    const body: any = {
       model: model.name,
       messages: messages.map((msg) => ({
         role: msg.role,
@@ -78,6 +120,15 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
       max_tokens: options?.maxTokens,
       stream: true,
     };
+
+    // Add tools for Responses API when web search is enabled
+    if (useResponsesAPI) {
+      body.tools = [
+        {
+          type: 'web_search',
+        },
+      ];
+    }
 
     const response = await this.withTimeout(
       fetch(url, {
@@ -118,7 +169,8 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
 
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content;
+              // Handle both Responses API and Chat Completions format
+              const content = parsed.content?.[0]?.text || parsed.choices?.[0]?.delta?.content;
               if (content) {
                 yield content;
               }

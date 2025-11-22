@@ -61,11 +61,36 @@ export class WorkerAgent extends BaseAgent {
       }
     }
 
+    // Check if web search is available (OpenAI GPT-5+ with web enabled)
+    // Select model early to check web search support
+    const model = await this.selectModel();
+    const supportsWebSearch = model.provider === 'openai' && (model.name.includes('gpt-5') || model.name.includes('gpt-4-turbo') || model.name.includes('gpt-4o'));
+    const webEnabled = context.input.web_enabled === true && supportsWebSearch;
+    
+    let systemPrompt = this.agentType.system_prompt;
+    
+    // If web search is enabled for OpenAI models, update prompt to mention it
+    if (webEnabled) {
+      // Add web search instructions to the prompt
+      systemPrompt += `\n\n**WEB SEARCH ACCESS:**
+You have access to web search capabilities through your model's built-in web_search tool. When you need current information, real-time data, or information that may not be in your training data, you can use web search automatically through your model's responses.
+
+The model will automatically search the web when needed to find current information. You don't need to explicitly request searches - just provide your normal response and the model will search for relevant information as needed.
+
+Use web search for:
+- Current prices, availability, or real-time data
+- Recent events or news
+- Current operating hours or contact information
+- Up-to-date information that may have changed since your training data cutoff
+
+Do NOT use web search for general knowledge that you already know from your training data.`;
+    }
+    
     // Build messages - emphasize focusing ONLY on the specific task
     const messages: ChatMessage[] = [
       {
         role: 'system',
-        content: this.agentType.system_prompt,
+        content: systemPrompt,
       },
       {
         role: 'user',
@@ -76,16 +101,20 @@ ${taskSummary}
 
 ${blackboardContext ? `\n**Blackboard Context (same view as the blackboard page - for reference only):**\n${blackboardContext}\n\nRemember: These items are for context only. Focus ONLY on completing YOUR task above.` : ''}
 ${userResponseContext}
-
-**CRITICAL: Complete the task using only your knowledge and training data. Provide actual, complete information - NOT search queries, tool calls, or placeholders. Your "content" field must contain real, detailed information that fully addresses the task.**
+${webEnabled ? `\n**NOTE: Web search is enabled for this model. The model will automatically search the web for current information when needed. Provide your response normally, and the model will search if necessary.**` : `\n**CRITICAL: Complete the task using only your knowledge and training data. Provide actual, complete information - NOT search queries, tool calls, or placeholders. Your "content" field must contain real, detailed information that fully addresses the task.**`}
 
 Provide a clear, complete response that addresses ONLY the task requirements listed above. Do not include information about other tasks or attempt to complete the entire goal.`,
       },
     ];
 
-    // Select model and execute
-    const model = await this.selectModel();
-    const rawOutput = await this.executeModelCall(model, messages, context.options);
+    // Execute model call (model already selected above)
+    // Pass web_enabled flag to model execution if OpenAI model supports it
+    const executionOptions = {
+      ...context.options,
+      web_enabled: webEnabled,
+    };
+    
+    const rawOutput = await this.executeModelCall(model, messages, executionOptions);
 
     // Parse JSON output
     const parseResult = parseJsonOutput(rawOutput);
@@ -183,10 +212,10 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
                 console.log(`[Worker] Using content field directly: ${output.substring(0, 100)}...`);
               } else {
                 console.error(`[Worker] Content field also contains a query, rejecting`);
-                output = null; // Will trigger fallback below
+                output = ''; // Will trigger fallback below
               }
             } else {
-              output = null; // Will trigger fallback below
+              output = ''; // Will trigger fallback below
             }
           }
         }
@@ -294,11 +323,11 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
       if (!summaryText || summaryText.trim().length < 10) {
         // Extract key action from task summary
         // Remove common prefixes and create a concise summary
-        const taskWords = taskSummary.split(' ');
-        // Find action verbs (usually early in the sentence)
-        const actionIndex = taskWords.findIndex(w => 
-          ['research', 'identify', 'compile', 'create', 'draft', 'write', 'find', 'list', 'gather'].includes(w.toLowerCase())
-        );
+          const taskWords = taskSummary.split(' ');
+          // Find action verbs (usually early in the sentence)
+          const actionIndex = taskWords.findIndex((w: string) => 
+            ['research', 'identify', 'compile', 'create', 'draft', 'write', 'find', 'list', 'gather'].includes(w.toLowerCase())
+          );
         
         if (actionIndex >= 0 && actionIndex < taskWords.length - 1) {
           // Use task action + first few words as summary
@@ -342,6 +371,9 @@ Provide a clear, complete response that addresses ONLY the task requirements lis
     
     console.log(`[Worker] Final output length: ${output.length} chars, preview: ${output.substring(0, 200)}...`);
     console.log(`[Worker] Final metadata summary: ${metadata.summary}`);
+    if (webEnabled) {
+      console.log(`[Worker] Web search was enabled for OpenAI model ${model.name}`);
+    }
 
     const latency = Date.now() - startTime;
 
