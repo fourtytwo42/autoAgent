@@ -144,12 +144,37 @@ export class ModelsRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const result = await this.poolInstance.query(
-      'DELETE FROM models WHERE id = $1',
-      [id]
-    );
+    // Use a transaction to ensure all related records are handled
+    const client = await this.poolInstance.connect();
+    try {
+      await client.query('BEGIN');
 
-    return result.rowCount ? result.rowCount > 0 : false;
+      // First, delete agent_model_prefs that reference this model (NOT NULL constraint)
+      await client.query(
+        'DELETE FROM agent_model_prefs WHERE model_id = $1',
+        [id]
+      );
+
+      // Set events.model_id to NULL where it references this model (nullable field)
+      await client.query(
+        'UPDATE events SET model_id = NULL WHERE model_id = $1',
+        [id]
+      );
+
+      // Now delete the model itself
+      const result = await client.query(
+        'DELETE FROM models WHERE id = $1',
+        [id]
+      );
+
+      await client.query('COMMIT');
+      return result.rowCount ? result.rowCount > 0 : false;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async enable(id: string): Promise<ModelRow | null> {
