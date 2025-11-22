@@ -55,9 +55,16 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         role: msg.role,
         content: msg.content,
       })),
-      temperature: options?.temperature ?? 0.7,
       stream: false,
     };
+
+    // Use default temperature (1) for models that require it, or custom temperature for others
+    if (this.requiresDefaultTemperature(model.name)) {
+      // Don't set temperature - let API use default (1)
+      // Some models like gpt5-nano only support the default temperature value
+    } else {
+      body.temperature = options?.temperature ?? 0.7;
+    }
 
     // Use max_completion_tokens for o1/o3 models, max_tokens for others
     if (this.requiresMaxCompletionTokens(model.name)) {
@@ -128,6 +135,18 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     return /o[13](-|$)/.test(modelNameLower) || /gpt-?5(-|$)/.test(modelNameLower);
   }
 
+  /**
+   * Check if a model requires default temperature (1) and doesn't support custom temperature values
+   * (e.g., gpt5 models like gpt5-nano)
+   */
+  private requiresDefaultTemperature(modelName: string): boolean {
+    if (!modelName) return false;
+    const modelNameLower = modelName.toLowerCase();
+    // Check for gpt5 models that require default temperature
+    // Match "gpt5" or "gpt-5" followed by a dash or end of string (case insensitive)
+    return /gpt-?5(-|$)/.test(modelNameLower);
+  }
+
   async *generateTextStream(
     model: ModelConfig,
     messages: ChatMessage[],
@@ -155,9 +174,16 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         role: msg.role,
         content: msg.content,
       })),
-      temperature: options?.temperature ?? 0.7,
       stream: true,
     };
+
+    // Use default temperature (1) for models that require it, or custom temperature for others
+    if (this.requiresDefaultTemperature(model.name)) {
+      // Don't set temperature - let API use default (1)
+      // Some models like gpt5-nano only support the default temperature value
+    } else {
+      body.temperature = options?.temperature ?? 0.7;
+    }
 
     // Use max_completion_tokens for o1/o3 models, max_tokens for others
     if (this.requiresMaxCompletionTokens(model.name)) {
@@ -270,8 +296,15 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     const body: any = {
       model: model.name,
       messages: formattedMessages,
-      temperature: options?.temperature ?? 0.7,
     };
+
+    // Use default temperature (1) for models that require it, or custom temperature for others
+    if (this.requiresDefaultTemperature(model.name)) {
+      // Don't set temperature - let API use default (1)
+      // Some models like gpt5-nano only support the default temperature value
+    } else {
+      body.temperature = options?.temperature ?? 0.7;
+    }
 
     // Use max_completion_tokens for o1/o3 models, max_tokens for others
     if (this.requiresMaxCompletionTokens(model.name)) {
