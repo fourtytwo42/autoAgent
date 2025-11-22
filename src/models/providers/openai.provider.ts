@@ -117,11 +117,14 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
 
   /**
    * Check if a model requires max_completion_tokens instead of max_tokens
-   * (e.g., o1, o3 reasoning models)
+   * (e.g., o1, o3 reasoning models and variations like o1-mini, o1-preview, o3-mini, etc.)
    */
   private requiresMaxCompletionTokens(modelName: string): boolean {
+    if (!modelName) return false;
     const modelNameLower = modelName.toLowerCase();
-    return modelNameLower.includes('o1') || modelNameLower.includes('o3');
+    // Check for o1 or o3 models (including variations like o1-mini, o1-preview, o1-2024-08-06, o3-mini, etc.)
+    // Match "o1" or "o3" followed by a dash or end of string (case insensitive)
+    return /o[13](-|$)/.test(modelNameLower);
   }
 
   async *generateTextStream(
