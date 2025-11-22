@@ -72,20 +72,41 @@ export class JobScheduler {
     try {
       const pendingTasks = await taskManager.getPendingTasks();
       
-      // Process up to 5 pending tasks per cycle (only if they're not completed)
+      if (pendingTasks.length > 0) {
+        console.log(`[Scheduler] Found ${pendingTasks.length} pending tasks, attempting to assign agents...`);
+      }
+      
+      // Process all pending tasks in parallel (up to 20 to avoid overload)
       // Process them in parallel to respect dependencies, each task checks its own dependencies
-      const taskPromises = pendingTasks
-        .slice(0, 5)
-        .filter(task => task.dimensions?.status !== 'completed')
-        .map(async (task) => {
-          try {
-            // Each task's assignAgentToTask checks its own dependencies
-            // So we can safely process multiple tasks in parallel
-            await taskManager.assignAgentToTask(task.id);
-          } catch (error) {
-            console.error(`[Scheduler] Error assigning agent to task ${task.id}:`, error);
+      // Sort by priority: high first, then medium, then low
+      const sortedTasks = pendingTasks
+        .filter(task => task.dimensions?.status !== 'completed' && task.dimensions?.status !== 'assigned' && task.dimensions?.status !== 'working')
+        .sort((a, b) => {
+          const priorityOrder = { high: 0, medium: 1, low: 2 };
+          const aPriority = priorityOrder[a.dimensions?.priority as keyof typeof priorityOrder] ?? 1;
+          const bPriority = priorityOrder[b.dimensions?.priority as keyof typeof priorityOrder] ?? 1;
+          return aPriority - bPriority;
+        })
+        .slice(0, 20); // Process up to 20 tasks per cycle
+      
+      if (sortedTasks.length > 0) {
+        console.log(`[Scheduler] Processing ${sortedTasks.length} pending tasks (prioritized by priority level)...`);
+      }
+      
+      const taskPromises = sortedTasks.map(async (task) => {
+        try {
+          // Each task's assignAgentToTask checks its own dependencies
+          // So we can safely process multiple tasks in parallel
+          const result = await taskManager.assignAgentToTask(task.id);
+          if (result) {
+            console.log(`[Scheduler] Successfully assigned agent(s) to task ${task.id}: ${task.summary.substring(0, 50)}...`);
+          } else {
+            console.log(`[Scheduler] Task ${task.id} not assigned (dependencies not met or no agents available): ${task.summary.substring(0, 50)}...`);
           }
-        });
+        } catch (error) {
+          console.error(`[Scheduler] Error assigning agent to task ${task.id}:`, error);
+        }
+      });
       
       // Process pending tasks in parallel
       await Promise.allSettled(taskPromises);
@@ -94,18 +115,62 @@ export class JobScheduler {
       // This handles cases where assigned_agents wasn't set but outputs exist
       const { checkTaskCompletion } = await import('./processors/taskCompletion');
       
-      // Check assigned tasks
+      // Check assigned tasks - retry stuck ones
       const assignedTasks = await blackboardService.query({
         type: 'task',
         dimensions: { status: 'assigned' },
-        limit: 10,
+        limit: 20,
       });
+      
+      // Check for stuck assigned tasks (assigned > 5 minutes with no outputs or jobs)
+      const now = Date.now();
+      const STUCK_ASSIGNED_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+      
+      const stuckAssignedTasks = await Promise.all(
+        assignedTasks.map(async (task) => {
+          const updatedAge = task.updated_at ? now - new Date(task.updated_at).getTime() : Date.now() - new Date(task.created_at || 0).getTime();
+          
+          // Check if task has outputs
+          const taskOutputs = await blackboardService.query({
+            type: 'agent_output',
+            parent_id: task.id,
+          });
+          
+          // Check if there are pending jobs for this task
+          const { jobQueue } = await import('./queue');
+          const pendingJobs = await jobQueue.getPendingJobs(100);
+          const taskJobs = pendingJobs.filter(job => {
+            const payload = job.payload as any;
+            return payload?.task_id === task.id;
+          });
+          
+          // Task is stuck if: assigned > 5 min, no outputs, no pending jobs
+          const isStuck = (updatedAge > STUCK_ASSIGNED_THRESHOLD) && taskOutputs.length === 0 && taskJobs.length === 0;
+          
+          return isStuck ? task : null;
+        })
+      );
+      
+      const stuckTasks = stuckAssignedTasks.filter(Boolean);
+      if (stuckTasks.length > 0) {
+        console.log(`[Scheduler] Found ${stuckTasks.length} stuck assigned tasks, retrying assignment...`);
+        const retryPromises = stuckTasks.map(async (task) => {
+          if (!task) return;
+          try {
+            console.log(`[Scheduler] Retrying assignment for stuck task ${task.id}: ${task.summary.substring(0, 50)}...`);
+            await taskManager.assignAgentToTask(task.id);
+          } catch (error) {
+            console.error(`[Scheduler] Error retrying stuck task ${task.id}:`, error);
+          }
+        });
+        await Promise.allSettled(retryPromises);
+      }
       
       // Check working tasks
       const workingTasks = await blackboardService.query({
         type: 'task',
         dimensions: { status: 'working' },
-        limit: 10,
+        limit: 20,
       });
       
       const tasksToCheck = [...assignedTasks, ...workingTasks];

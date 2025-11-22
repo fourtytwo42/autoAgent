@@ -127,8 +127,11 @@ export class TaskManager {
     }
 
     if (selectedAgents.length === 0) {
+      console.log(`[TaskManager] No agents found for task ${taskId} (type: ${taskType}). Available agents: ${agents.map(a => a.id).join(', ')}`);
       return false;
     }
+    
+    console.log(`[TaskManager] Found ${selectedAgents.length} matching agents for task ${taskId}: ${selectedAgents.map(m => m.agent.id).join(', ')}`);
 
     // Select up to agentCount agents (or all available if fewer)
     const agentsToAssign = selectedAgents.slice(0, Math.min(agentCount, selectedAgents.length));
