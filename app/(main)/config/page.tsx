@@ -122,6 +122,29 @@ export default function ConfigPage() {
     }
   };
 
+  const handleDeleteModel = async (modelId: string, modelName: string) => {
+    if (!confirm(`Are you sure you want to delete "${modelName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/models/${modelId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchRegisteredModels(selectedProvider || undefined);
+        alert(`Model "${modelName}" deleted successfully`);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message || 'Failed to delete model'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting model:', error);
+      alert('Failed to delete model');
+    }
+  };
+
   const saveProviderConfig = async (providerId: string) => {
     if (!providerConfig) return;
     
@@ -376,6 +399,13 @@ export default function ConfigPage() {
                             onClick={() => setEditingModel(model)}
                           >
                             Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteModel(model.id, model.display_name || model.name)}
+                          >
+                            Delete
                           </Button>
                         </div>
                       </CardContent>
