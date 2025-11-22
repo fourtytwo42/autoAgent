@@ -4,14 +4,28 @@ import { ModelConfig, ChatMessage, ChatMessageWithImages, ModelExecutionOptions 
 import { getProviderConfig } from '@/src/config/models';
 
 export class OpenAIProvider extends BaseProvider implements IModelProvider {
-  private apiKey?: string;
+  private _apiKey?: string;
   private baseUrl: string = 'https://api.openai.com/v1';
-
+  
   constructor(timeout: number = 60000) {
     super(timeout);
-    const config = getProviderConfig('openai');
-    this.apiKey = config.apiKey;
-    this.timeout = config.timeout || timeout;
+    this.loadConfig().catch(console.error); // Load async, don't block constructor
+  }
+
+  private async loadConfig(): Promise<void> {
+    const config = await getProviderConfig('openai');
+    this._apiKey = config.apiKey;
+    this.timeout = config.timeout || this.timeout;
+  }
+
+  get apiKey(): string | undefined {
+    return this._apiKey;
+  }
+
+  async ensureConfig(): Promise<void> {
+    if (!this._apiKey) {
+      await this.loadConfig();
+    }
   }
 
   async generateText(
@@ -19,8 +33,9 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): Promise<string> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('OpenAI API key not configured. Please set it in the configuration page.');
     }
 
     // Check if web search is enabled and model supports it (GPT-5+ OpenAI models)
@@ -59,7 +74,7 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this._apiKey}`,
         },
         body: JSON.stringify(body),
       }),
@@ -95,8 +110,9 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): AsyncIterable<string> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('OpenAI API key not configured. Please set it in the configuration page.');
     }
 
     // Check if web search is enabled and model supports it
@@ -135,7 +151,7 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this._apiKey}`,
         },
         body: JSON.stringify(body),
       }),
@@ -230,7 +246,7 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this._apiKey}`,
         },
         body: JSON.stringify(body),
       }),
@@ -251,12 +267,14 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     return modality === 'text' || modality === 'vision';
   }
 
-  isAvailable(): boolean {
-    return !!this.apiKey;
+  async isAvailable(): Promise<boolean> {
+    await this.ensureConfig();
+    return !!this._apiKey;
   }
 
   async listModels(): Promise<ProviderModel[]> {
-    if (!this.apiKey) {
+    await this.ensureConfig();
+    if (!this._apiKey) {
       return [];
     }
 
@@ -266,7 +284,7 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${this._apiKey}`,
           },
         }),
         this.timeout
