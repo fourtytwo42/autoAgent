@@ -165,6 +165,50 @@ export async function checkTaskCompletion(taskId: string): Promise<boolean> {
       
       console.log(`[checkTaskCompletion] All tasks complete for goal ${goalId}: ${allTasksComplete}`);
 
+      // If not all tasks are complete, check for stuck tasks and retry them
+      if (!allTasksComplete) {
+        const incompleteTasks = taskItems.filter(t => 
+          t.dimensions?.status !== 'completed' && 
+          (t.dimensions?.status === 'assigned' || t.dimensions?.status === 'working')
+        );
+        
+        if (incompleteTasks.length > 0) {
+          console.log(`[checkTaskCompletion] Found ${incompleteTasks.length} incomplete tasks for goal ${goalId}, checking if they need retry...`);
+          
+          // Check for stuck tasks (assigned/working for more than 5 minutes without output)
+          const now = Date.now();
+          const STUCK_TASK_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+          
+          for (const task of incompleteTasks) {
+            const taskAge = now - new Date(task.created_at || 0).getTime();
+            const updatedAge = task.updated_at ? now - new Date(task.updated_at).getTime() : taskAge;
+            
+            // Check if task has outputs
+            const taskOutputs = await blackboardService.query({
+              type: 'agent_output',
+              parent_id: task.id,
+            });
+            
+            // Task is stuck if:
+            // 1. It's been assigned/working for > 5 minutes
+            // 2. No outputs exist
+            // 3. It was updated more than 5 minutes ago
+            const isStuck = (updatedAge > STUCK_TASK_THRESHOLD) && taskOutputs.length === 0;
+            
+            if (isStuck) {
+              console.log(`[checkTaskCompletion] Task ${task.id} appears stuck (${Math.round(updatedAge / 1000)}s old, no outputs), retrying assignment...`);
+              
+              // Retry assignment
+              try {
+                await taskManager.assignAgentToTask(task.id);
+              } catch (error) {
+                console.error(`[checkTaskCompletion] Error retrying assignment for task ${task.id}:`, error);
+              }
+            }
+          }
+        }
+      }
+
       if (allTasksComplete && taskItems.length > 0) {
         console.log(`[checkTaskCompletion] Triggering WeSpeaker for goal ${goalId} with ${taskItems.length} completed tasks`);
         // All tasks complete - trigger WeSpeaker to provide final response

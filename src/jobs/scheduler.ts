@@ -109,6 +109,7 @@ export class JobScheduler {
       
       // Also periodically check all goals to see if all tasks are complete
       // This ensures WeSpeaker is triggered even if a task completion check was missed
+      // Also retry stuck tasks and trigger WeSpeaker if most tasks are done
       // Only check every 10th cycle to avoid too much overhead (roughly every 50 seconds)
       if (Math.random() < 0.1) {
         const openGoals = await blackboardService.query({
@@ -122,9 +123,44 @@ export class JobScheduler {
           const taskItems = allTasks.filter(t => t.type === 'task');
           
           if (taskItems.length > 0) {
-            const allTasksComplete = taskItems.every(t => 
-              t.dimensions?.status === 'completed'
-            );
+            const completedTasks = taskItems.filter(t => t.dimensions?.status === 'completed');
+            const allTasksComplete = completedTasks.length === taskItems.length;
+            
+            // If most tasks are complete (>80%), retry incomplete ones and potentially trigger WeSpeaker
+            const completionRatio = completedTasks.length / taskItems.length;
+            const shouldRetryIncomplete = completionRatio >= 0.8 && !allTasksComplete;
+            
+            if (shouldRetryIncomplete) {
+              console.log(`[Scheduler] Goal ${goal.id} has ${completedTasks.length}/${taskItems.length} tasks complete (${Math.round(completionRatio * 100)}%), retrying incomplete tasks...`);
+              
+              const incompleteTasks = taskItems.filter(t => 
+                t.dimensions?.status !== 'completed' && 
+                (t.dimensions?.status === 'assigned' || t.dimensions?.status === 'working')
+              );
+              
+              const now = Date.now();
+              const STUCK_TASK_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+              
+              for (const task of incompleteTasks) {
+                const updatedAge = task.updated_at ? now - new Date(task.updated_at).getTime() : Date.now() - new Date(task.created_at || 0).getTime();
+                const taskOutputs = await blackboardService.query({
+                  type: 'agent_output',
+                  parent_id: task.id,
+                });
+                
+                const isStuck = (updatedAge > STUCK_TASK_THRESHOLD) && taskOutputs.length === 0;
+                
+                if (isStuck) {
+                  console.log(`[Scheduler] Retrying stuck task ${task.id} for goal ${goal.id}...`);
+                  try {
+                    const { taskManager } = await import('@/src/orchestrator/taskManager');
+                    await taskManager.assignAgentToTask(task.id);
+                  } catch (error) {
+                    console.error(`[Scheduler] Error retrying task ${task.id}:`, error);
+                  }
+                }
+              }
+            }
             
             if (allTasksComplete) {
               console.log(`[Scheduler] All tasks complete for goal ${goal.id}, triggering WeSpeaker`);
