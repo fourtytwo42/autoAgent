@@ -77,6 +77,34 @@ export async function POST(request: NextRequest) {
     // Use streaming for better UX
     const stream = new ReadableStream({
       async start(controller) {
+        let isClosed = false;
+
+        // Helper function to safely enqueue data
+        const safeEnqueue = (data: Uint8Array) => {
+          try {
+            if (!isClosed) {
+              controller.enqueue(data);
+            }
+          } catch (error) {
+            // Controller might be closed or errored
+            console.warn('Failed to enqueue data (controller may be closed):', error);
+            isClosed = true;
+          }
+        };
+
+        // Helper function to safely close the controller
+        const safeClose = () => {
+          if (!isClosed) {
+            try {
+              controller.close();
+              isClosed = true;
+            } catch (error) {
+              // Already closed or errored
+              console.warn('Failed to close controller (may already be closed):', error);
+            }
+          }
+        };
+
         try {
           // Check if this is a response to a pending user query request
           const pendingQueries = await blackboardService.query({
@@ -101,13 +129,17 @@ export async function POST(request: NextRequest) {
           });
 
           // Send the final response from WeSpeaker
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'response', ...response })}\n\n`));
-          controller.close();
+          safeEnqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'response', ...response })}\n\n`));
+          safeClose();
         } catch (error) {
           console.error('Error in conversation stream:', error);
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
-          controller.close();
+          safeEnqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
+          safeClose();
         }
+      },
+      cancel() {
+        // Handle client abort/close
+        console.log('Conversation stream cancelled by client');
       },
     });
 
