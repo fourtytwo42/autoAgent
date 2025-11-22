@@ -281,17 +281,8 @@ export class Orchestrator {
       output.metadata
     );
 
-    // Schedule Judge to evaluate the output
-    await jobQueue.createRunAgentJob(
-      'Judge',
-      {
-        agent_output_id: agentOutput.id,
-        agent_output: output.output,
-        task_summary: goal.summary,
-        agent_id: output.agent_id,
-        web_enabled: webEnabled,
-      }
-    );
+    // Don't schedule Judge for WeSpeaker outputs - Judge should only evaluate Worker outputs
+    // WeSpeaker outputs are final responses to users and don't need evaluation
 
     // Tasks already retrieved above (existingTasks and taskItems defined earlier)
 

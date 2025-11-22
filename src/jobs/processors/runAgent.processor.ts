@@ -216,7 +216,10 @@ export class RunAgentProcessor extends BaseJobProcessor {
     // Save agent output to blackboard
     const goalId = payload.context?.goal_id;
     
-    if (taskId) {
+    // Skip saving Judge outputs as agent_outputs - Judge already creates judgement items directly
+    if (payload.agent_id === 'Judge') {
+      console.log(`[RunAgentProcessor] Skipping agent_output save for Judge - it creates judgement items directly`);
+    } else if (taskId) {
       // Save output linked to task
       try {
         console.log(`[RunAgentProcessor] Saving output for task ${taskId} from agent ${payload.agent_id}`);
@@ -239,18 +242,23 @@ export class RunAgentProcessor extends BaseJobProcessor {
         // Note: No longer scheduling Summarizer for worker outputs since workers provide summaries in their JSON output
         // The summary is already extracted and saved via metadata.summary in createAgentOutput
 
-        // Schedule Judge to evaluate this output
-        await jobQueue.createRunAgentJob(
-          'Judge',
-          {
-            agent_output_id: agentOutput.id,
-            agent_output: output.output,
-            task_id: taskId,
-            agent_id: output.agent_id,
-            model_id: output.model_id,
-            web_enabled: payload.context?.web_enabled ?? false,
-          }
-        );
+        // Schedule Judge to evaluate this output (only for Worker outputs, not for Judge/WeSpeaker/TaskPlanner/etc.)
+        const workerAgents = ['Worker', 'ResearchWorker', 'WritingWorker', 'AnalysisWorker'];
+        if (workerAgents.includes(output.agent_id)) {
+          await jobQueue.createRunAgentJob(
+            'Judge',
+            {
+              agent_output_id: agentOutput.id,
+              agent_output: output.output,
+              task_id: taskId,
+              agent_id: output.agent_id,
+              model_id: output.model_id,
+              web_enabled: payload.context?.web_enabled ?? false,
+            }
+          );
+        } else {
+          console.log(`[RunAgentProcessor] Skipping Judge for non-worker agent: ${output.agent_id}`);
+        }
         
         // Update model metrics after a delay (let judge complete first)
         setTimeout(async () => {
@@ -330,18 +338,8 @@ export class RunAgentProcessor extends BaseJobProcessor {
         
         console.log(`[RunAgentProcessor] Created WeSpeaker output ${agentOutput.id} for goal ${goalId}`);
         
-        // Schedule Judge to evaluate this output
-        await jobQueue.createRunAgentJob(
-          'Judge',
-          {
-            agent_output_id: agentOutput.id,
-            agent_output: output.output,
-            goal_id: goalId,
-            agent_id: output.agent_id,
-            model_id: output.model_id,
-            web_enabled: payload.context?.web_enabled ?? false,
-          }
-        );
+        // Don't schedule Judge for WeSpeaker outputs - Judge should only evaluate Worker outputs
+        // WeSpeaker outputs are final responses to users and don't need evaluation
         
         // Update model metrics after a delay (let judge complete first)
         setTimeout(async () => {
