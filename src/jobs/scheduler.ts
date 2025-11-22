@@ -33,14 +33,38 @@ export class JobScheduler {
     this.isRunning = true;
     console.log(`Job scheduler started (worker: ${this.workerId})`);
 
-    // Process immediately
-    this.processJobs();
-    this.processPendingTasks();
+    // Process immediately (with error handling for build phase)
+    this.processJobs().catch((error) => {
+      if (error instanceof Error && error.message.includes('build phase')) {
+        // Silently skip during build phase
+        return;
+      }
+      console.error('Error in scheduler loop:', error);
+    });
+    this.processPendingTasks().catch((error) => {
+      if (error instanceof Error && error.message.includes('build phase')) {
+        // Silently skip during build phase
+        return;
+      }
+      console.error('Error processing pending tasks:', error);
+    });
 
     // Then process at interval
     this.intervalId = setInterval(() => {
-      this.processJobs();
-      this.processPendingTasks();
+      this.processJobs().catch((error) => {
+        if (error instanceof Error && error.message.includes('build phase')) {
+          // Silently skip during build phase
+          return;
+        }
+        console.error('Error in scheduler loop:', error);
+      });
+      this.processPendingTasks().catch((error) => {
+        if (error instanceof Error && error.message.includes('build phase')) {
+          // Silently skip during build phase
+          return;
+        }
+        console.error('Error processing pending tasks:', error);
+      });
     }, intervalMs);
   }
 
