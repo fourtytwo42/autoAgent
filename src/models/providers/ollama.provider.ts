@@ -4,13 +4,27 @@ import { ModelConfig, ChatMessage, ModelExecutionOptions } from '@/src/types/mod
 import { getProviderConfig } from '@/src/config/models';
 
 export class OllamaProvider extends BaseProvider implements IModelProvider {
-  private baseUrl: string;
+  private _baseUrl?: string;
 
   constructor(timeout: number = 120000) {
     super(timeout);
-    const config = getProviderConfig('ollama');
-    this.baseUrl = config.baseUrl || 'http://localhost:11434';
-    this.timeout = config.timeout || timeout;
+    this.loadConfig().catch(console.error);
+  }
+
+  private async loadConfig(): Promise<void> {
+    const config = await getProviderConfig('ollama');
+    this._baseUrl = config.baseUrl || 'http://localhost:11434';
+    this.timeout = config.timeout || this.timeout;
+  }
+
+  async ensureConfig(): Promise<void> {
+    if (!this._baseUrl) {
+      await this.loadConfig();
+    }
+  }
+
+  private get baseUrl(): string {
+    return this._baseUrl || 'http://localhost:11434';
   }
 
   async generateText(
@@ -18,6 +32,7 @@ export class OllamaProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): Promise<string> {
+    await this.ensureConfig();
     const url = `${this.baseUrl}/api/chat`;
 
     // Convert messages to Ollama format

@@ -4,14 +4,24 @@ import { ModelConfig, ChatMessage, ModelExecutionOptions } from '@/src/types/mod
 import { getProviderConfig } from '@/src/config/models';
 
 export class GroqProvider extends BaseProvider implements IModelProvider {
-  private apiKey?: string;
+  private _apiKey?: string;
   private baseUrl: string = 'https://api.groq.com/openai/v1';
 
   constructor(timeout: number = 30000) {
     super(timeout);
-    const config = getProviderConfig('groq');
-    this.apiKey = config.apiKey;
-    this.timeout = config.timeout || timeout;
+    this.loadConfig().catch(console.error);
+  }
+
+  private async loadConfig(): Promise<void> {
+    const config = await getProviderConfig('groq');
+    this._apiKey = config.apiKey;
+    this.timeout = config.timeout || this.timeout;
+  }
+
+  async ensureConfig(): Promise<void> {
+    if (!this._apiKey) {
+      await this.loadConfig();
+    }
   }
 
   async generateText(
@@ -19,8 +29,9 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): Promise<string> {
-    if (!this.apiKey) {
-      throw new Error('Groq API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('Groq API key not configured. Please set it in the configuration page.');
     }
 
     const url = `${this.baseUrl}/chat/completions`;
@@ -41,7 +52,7 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this._apiKey}`,
         },
         body: JSON.stringify(body),
       }),
@@ -62,8 +73,9 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): AsyncIterable<string> {
-    if (!this.apiKey) {
-      throw new Error('Groq API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('Groq API key not configured. Please set it in the configuration page.');
     }
 
     const url = `${this.baseUrl}/chat/completions`;
@@ -84,7 +96,7 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this._apiKey}`,
         },
         body: JSON.stringify(body),
       }),
@@ -134,15 +146,17 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
   }
 
   supportsModality(modality: string): boolean {
-    return modality === 'text'; // Groq currently text-only
+    return modality === 'text';
   }
 
-  isAvailable(): boolean {
-    return !!this.apiKey;
+  async isAvailable(): Promise<boolean> {
+    await this.ensureConfig();
+    return !!this._apiKey;
   }
 
   async listModels(): Promise<ProviderModel[]> {
-    if (!this.apiKey) {
+    await this.ensureConfig();
+    if (!this._apiKey) {
       return [];
     }
 
@@ -152,7 +166,7 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${this._apiKey}`,
           },
         }),
         this.timeout
@@ -179,4 +193,3 @@ export class GroqProvider extends BaseProvider implements IModelProvider {
     }
   }
 }
-

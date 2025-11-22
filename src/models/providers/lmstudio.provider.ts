@@ -4,13 +4,27 @@ import { ModelConfig, ChatMessage, ModelExecutionOptions } from '@/src/types/mod
 import { getProviderConfig } from '@/src/config/models';
 
 export class LMStudioProvider extends BaseProvider implements IModelProvider {
-  private baseUrl: string;
+  private _baseUrl?: string;
 
   constructor(timeout: number = 120000) {
     super(timeout);
-    const config = getProviderConfig('lmstudio');
-    this.baseUrl = config.baseUrl || 'http://192.168.50.238:1234';
-    this.timeout = config.timeout || 120000; // Default 2 minutes for network
+    this.loadConfig().catch(console.error);
+  }
+
+  private async loadConfig(): Promise<void> {
+    const config = await getProviderConfig('lmstudio');
+    this._baseUrl = config.baseUrl || 'http://192.168.50.238:1234';
+    this.timeout = config.timeout || 120000;
+  }
+
+  async ensureConfig(): Promise<void> {
+    if (!this._baseUrl) {
+      await this.loadConfig();
+    }
+  }
+
+  private get baseUrl(): string {
+    return this._baseUrl || 'http://192.168.50.238:1234';
   }
 
   async generateText(
@@ -18,6 +32,7 @@ export class LMStudioProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): Promise<string> {
+    await this.ensureConfig();
     const url = `${this.baseUrl}/v1/chat/completions`;
 
     // LM Studio uses OpenAI-compatible API

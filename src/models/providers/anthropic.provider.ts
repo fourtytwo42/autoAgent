@@ -4,14 +4,24 @@ import { ModelConfig, ChatMessage, ChatMessageWithImages, ModelExecutionOptions 
 import { getProviderConfig } from '@/src/config/models';
 
 export class AnthropicProvider extends BaseProvider implements IModelProvider {
-  private apiKey?: string;
+  private _apiKey?: string;
   private baseUrl: string = 'https://api.anthropic.com/v1';
 
   constructor(timeout: number = 60000) {
     super(timeout);
-    const config = getProviderConfig('anthropic');
-    this.apiKey = config.apiKey;
-    this.timeout = config.timeout || timeout;
+    this.loadConfig().catch(console.error);
+  }
+
+  private async loadConfig(): Promise<void> {
+    const config = await getProviderConfig('anthropic');
+    this._apiKey = config.apiKey;
+    this.timeout = config.timeout || this.timeout;
+  }
+
+  async ensureConfig(): Promise<void> {
+    if (!this._apiKey) {
+      await this.loadConfig();
+    }
   }
 
   async generateText(
@@ -19,8 +29,9 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): Promise<string> {
-    if (!this.apiKey) {
-      throw new Error('Anthropic API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('Anthropic API key not configured. Please set it in the configuration page.');
     }
 
     const url = `${this.baseUrl}/messages`;
@@ -45,7 +56,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': this._apiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify(body),
@@ -67,8 +78,9 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessage[],
     options?: ModelExecutionOptions
   ): AsyncIterable<string> {
-    if (!this.apiKey) {
-      throw new Error('Anthropic API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('Anthropic API key not configured. Please set it in the configuration page.');
     }
 
     const url = `${this.baseUrl}/messages`;
@@ -93,7 +105,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': this._apiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify(body),
@@ -150,8 +162,9 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
     messages: ChatMessageWithImages[],
     options?: ModelExecutionOptions
   ): Promise<string> {
-    if (!this.apiKey) {
-      throw new Error('Anthropic API key not configured');
+    await this.ensureConfig();
+    if (!this._apiKey) {
+      throw new Error('Anthropic API key not configured. Please set it in the configuration page.');
     }
 
     const url = `${this.baseUrl}/messages`;
@@ -196,7 +209,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': this._apiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify(body),
@@ -217,8 +230,9 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
     return modality === 'text' || modality === 'vision';
   }
 
-  isAvailable(): boolean {
-    return !!this.apiKey;
+  async isAvailable(): Promise<boolean> {
+    await this.ensureConfig();
+    return !!this._apiKey;
   }
 
   async listModels(): Promise<ProviderModel[]> {
@@ -266,7 +280,7 @@ export class AnthropicProvider extends BaseProvider implements IModelProvider {
       },
     ];
 
-    return this.apiKey ? knownModels : [];
+    return this._apiKey ? knownModels : [];
   }
 }
 
