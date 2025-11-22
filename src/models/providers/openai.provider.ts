@@ -56,9 +56,19 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         content: msg.content,
       })),
       temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens,
       stream: false,
     };
+
+    // Use max_completion_tokens for o1/o3 models, max_tokens for others
+    if (this.requiresMaxCompletionTokens(model.name)) {
+      if (options?.maxTokens) {
+        body.max_completion_tokens = options.maxTokens;
+      }
+    } else {
+      if (options?.maxTokens) {
+        body.max_tokens = options.maxTokens;
+      }
+    }
 
     // Add tools for Responses API when web search is enabled
     if (useResponsesAPI) {
@@ -105,6 +115,15 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
     return modelName.includes('gpt-5') || modelName.includes('gpt-4-turbo') || modelName.includes('gpt-4o');
   }
 
+  /**
+   * Check if a model requires max_completion_tokens instead of max_tokens
+   * (e.g., o1, o3 reasoning models)
+   */
+  private requiresMaxCompletionTokens(modelName: string): boolean {
+    const modelNameLower = modelName.toLowerCase();
+    return modelNameLower.includes('o1') || modelNameLower.includes('o3');
+  }
+
   async *generateTextStream(
     model: ModelConfig,
     messages: ChatMessage[],
@@ -133,9 +152,19 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
         content: msg.content,
       })),
       temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens,
       stream: true,
     };
+
+    // Use max_completion_tokens for o1/o3 models, max_tokens for others
+    if (this.requiresMaxCompletionTokens(model.name)) {
+      if (options?.maxTokens) {
+        body.max_completion_tokens = options.maxTokens;
+      }
+    } else {
+      if (options?.maxTokens) {
+        body.max_tokens = options.maxTokens;
+      }
+    }
 
     // Add tools for Responses API when web search is enabled
     if (useResponsesAPI) {
@@ -234,12 +263,22 @@ export class OpenAIProvider extends BaseProvider implements IModelProvider {
       };
     });
 
-    const body = {
+    const body: any = {
       model: model.name,
       messages: formattedMessages,
       temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens,
     };
+
+    // Use max_completion_tokens for o1/o3 models, max_tokens for others
+    if (this.requiresMaxCompletionTokens(model.name)) {
+      if (options?.maxTokens) {
+        body.max_completion_tokens = options.maxTokens;
+      }
+    } else {
+      if (options?.maxTokens) {
+        body.max_tokens = options.maxTokens;
+      }
+    }
 
     const response = await this.withTimeout(
       fetch(url, {
