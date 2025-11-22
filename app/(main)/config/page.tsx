@@ -53,6 +53,8 @@ export default function ConfigPage() {
   const [loading, setLoading] = useState(true);
   const [editingModel, setEditingModel] = useState<Model | null>(null);
   const [showAddModel, setShowAddModel] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
+  const [providerConfig, setProviderConfig] = useState<{ apiKey?: string; baseUrl?: string; timeout?: number } | null>(null);
 
   useEffect(() => {
     fetchProviders();
@@ -102,6 +104,50 @@ export default function ConfigPage() {
       setRegisteredModels(data.models || []);
     } catch (error) {
       console.error('Error fetching registered models:', error);
+    }
+  };
+
+  const fetchProviderConfig = async (providerId: string) => {
+    try {
+      const response = await fetch(`/api/providers/${providerId}/config`);
+      const data = await response.json();
+      setProviderConfig({
+        apiKey: data.hasApiKey ? '***' : '',
+        baseUrl: data.baseUrl || '',
+        timeout: data.timeout || 60000,
+      });
+    } catch (error) {
+      console.error('Error fetching provider config:', error);
+      setProviderConfig({ apiKey: '', baseUrl: '', timeout: 60000 });
+    }
+  };
+
+  const saveProviderConfig = async (providerId: string) => {
+    if (!providerConfig) return;
+    
+    try {
+      const response = await fetch(`/api/providers/${providerId}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: providerConfig.apiKey === '***' ? undefined : providerConfig.apiKey,
+          baseUrl: providerConfig.baseUrl,
+          timeout: providerConfig.timeout,
+        }),
+      });
+
+      if (response.ok) {
+        await fetchProviders(); // Refresh provider list
+        setEditingProvider(null);
+        setProviderConfig(null);
+        alert('Provider settings saved successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.message || 'Failed to save provider settings'}`);
+      }
+    } catch (error) {
+      console.error('Error saving provider config:', error);
+      alert('Failed to save provider settings');
     }
   };
 
@@ -395,8 +441,7 @@ export default function ConfigPage() {
           return (
             <Card
               key={provider.id}
-              className="cursor-pointer transition-all hover:border-primary hover:shadow-lg"
-              onClick={() => setSelectedProvider(provider.id)}
+              className="transition-all hover:border-primary hover:shadow-lg"
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -425,20 +470,34 @@ export default function ConfigPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t">
+                <div className="flex items-center justify-between pt-4 border-t gap-2">
                   <div className="text-sm text-muted-foreground">
                     {modelCount} model{modelCount !== 1 ? 's' : ''} registered
                   </div>
-                  <Button 
-                    size="sm" 
-                    variant="default"
-                    onClick={() => {
-                      setSelectedProvider(provider.id);
-                      fetchProviderModels(provider.id);
-                    }}
-                  >
-                    View Models →
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fetchProviderConfig(provider.id);
+                        setEditingProvider(provider);
+                      }}
+                    >
+                      Settings
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="default"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProvider(provider.id);
+                        fetchProviderModels(provider.id);
+                      }}
+                    >
+                      Models →
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -446,24 +505,76 @@ export default function ConfigPage() {
         })}
       </div>
 
-      {/* Environment Variables Help */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Environment Variables</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm mb-4">
-            Configure providers by adding these variables to your <code className="bg-background px-2 py-1 rounded text-xs">.env</code> file:
-          </p>
-          <div className="bg-background rounded-lg p-4 font-mono text-sm text-muted-foreground flex flex-col gap-1">
-            <div>OPENAI_API_KEY=your_key_here</div>
-            <div>ANTHROPIC_API_KEY=your_key_here</div>
-            <div>GROQ_API_KEY=your_key_here</div>
-            <div>OLLAMA_BASE_URL=http://localhost:11434</div>
-            <div>LM_STUDIO_BASE_URL=http://localhost:1234</div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Provider Settings Dialog */}
+      <Dialog open={!!editingProvider} onOpenChange={(open) => {
+        if (!open) {
+          setEditingProvider(null);
+          setProviderConfig(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingProvider?.name} Settings</DialogTitle>
+          </DialogHeader>
+          {providerConfig && editingProvider && (
+            <div className="space-y-4">
+              {['openai', 'anthropic', 'groq'].includes(editingProvider.id) && (
+                <div>
+                  <Label htmlFor="apiKey">API Key</Label>
+                  <Input
+                    id="apiKey"
+                    type="password"
+                    placeholder={providerConfig.apiKey === '***' ? 'API key is set (leave unchanged)' : 'Enter API key'}
+                    value={providerConfig.apiKey === '***' ? '' : providerConfig.apiKey || ''}
+                    onChange={(e) => setProviderConfig({ ...providerConfig, apiKey: e.target.value })}
+                    className="mt-1"
+                  />
+                  {providerConfig.apiKey === '***' && (
+                    <p className="text-xs text-muted-foreground mt-1">Leave empty to keep current value</p>
+                  )}
+                </div>
+              )}
+              {['ollama', 'lmstudio'].includes(editingProvider.id) && (
+                <div>
+                  <Label htmlFor="baseUrl">Base URL</Label>
+                  <Input
+                    id="baseUrl"
+                    type="text"
+                    placeholder={editingProvider.id === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234'}
+                    value={providerConfig.baseUrl || ''}
+                    onChange={(e) => setProviderConfig({ ...providerConfig, baseUrl: e.target.value })}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Enter the base URL for your {editingProvider.name} instance</p>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="timeout">Timeout (ms)</Label>
+                <Input
+                  id="timeout"
+                  type="number"
+                  placeholder="60000"
+                  value={providerConfig.timeout || 60000}
+                  onChange={(e) => setProviderConfig({ ...providerConfig, timeout: parseInt(e.target.value) || 60000 })}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Request timeout in milliseconds</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => {
+              setEditingProvider(null);
+              setProviderConfig(null);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={() => editingProvider && saveProviderConfig(editingProvider.id)}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Manual Model Dialog */}
       <Dialog open={showAddModel} onOpenChange={setShowAddModel}>

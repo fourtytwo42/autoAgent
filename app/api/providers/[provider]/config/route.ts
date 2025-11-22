@@ -34,9 +34,9 @@ export async function GET(
       hasApiKey: !!config.apiKey,
       hasBaseUrl: !!config.baseUrl,
       baseUrl: config.baseUrl,
-      timeout: config.timeout,
+      timeout: config.timeout || 60000,
       isEnabled: config.isEnabled !== false,
-      metadata: config.metadata,
+      metadata: config.metadata || {},
     });
   } catch (error) {
     console.error('Error fetching provider config:', error);
