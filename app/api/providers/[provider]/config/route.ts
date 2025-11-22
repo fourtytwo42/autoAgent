@@ -64,7 +64,8 @@ export async function PUT(
     const body = await request.json();
     const updates: Partial<ProviderConfig> = {};
 
-    if (body.apiKey !== undefined) {
+    // Only update API key if a new value is provided (empty string clears it)
+    if (body.apiKey !== undefined && body.apiKey !== null && body.apiKey !== '***') {
       updates.apiKey = body.apiKey || undefined;
     }
     
