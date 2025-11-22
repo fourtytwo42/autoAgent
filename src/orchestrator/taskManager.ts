@@ -133,11 +133,10 @@ export class TaskManager {
     // Select up to agentCount agents (or all available if fewer)
     const agentsToAssign = selectedAgents.slice(0, Math.min(agentCount, selectedAgents.length));
     const assignedAgentIds: string[] = [];
+    const webEnabled = task.dimensions?.web_enabled ?? false;
 
-    // Assign each agent to the task
-    for (const match of agentsToAssign) {
-      const webEnabled = task.dimensions?.web_enabled ?? false;
-      // Create job to run agent
+    // Create all jobs first (parallel job creation)
+    const jobPromises = agentsToAssign.map(async (match) => {
       const job = await jobQueue.createRunAgentJob(
         match.agent.id,
         {
@@ -156,16 +155,7 @@ export class TaskManager {
       console.log(`[TaskManager] Created job ${job.id} for agent ${match.agent.id} on task ${taskId}: ${task.summary.substring(0, 50)}`);
       console.log(`[TaskManager] Job status: ${job.status}, scheduled_for: ${job.scheduled_for}`);
       
-      // Try to process the job immediately if scheduler is running
-      try {
-        await jobScheduler.processJobImmediately(job.id);
-        console.log(`[TaskManager] Job ${job.id} processed immediately`);
-      } catch (error) {
-        console.log(`[TaskManager] Job ${job.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-      
-      assignedAgentIds.push(match.agent.id);
-
+      // Create event for this agent assignment
       await eventsRepository.create({
         type: 'task_updated',
         blackboard_item_id: taskId,
@@ -175,7 +165,32 @@ export class TaskManager {
           status: 'assigned',
         },
       });
-    }
+      
+      return { job, agentId: match.agent.id };
+    });
+
+    // Wait for all jobs to be created
+    const jobResults = await Promise.all(jobPromises);
+    
+    // Process all jobs in parallel
+    // The scheduler's processJobImmediately will handle parallel execution
+    // Each job execution is independent, so we can run them concurrently
+    const processPromises = jobResults.map(async ({ job, agentId }) => {
+      assignedAgentIds.push(agentId);
+      
+      // Try to process the job immediately if scheduler is running
+      // These will execute in parallel since we use Promise.allSettled
+      try {
+        await jobScheduler.processJobImmediately(job.id);
+        console.log(`[TaskManager] Job ${job.id} processed immediately`);
+      } catch (error) {
+        console.log(`[TaskManager] Job ${job.id} will be processed by scheduler: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    });
+
+    // Process all jobs in parallel - they'll be picked up by the scheduler's parallel execution
+    // Note: The actual model API calls will be parallel as long as the provider supports it
+    await Promise.allSettled(processPromises);
 
     // Update task with assigned agents
     // Read fresh task to ensure we have current dimensions

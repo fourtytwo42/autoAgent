@@ -73,14 +73,22 @@ export class JobScheduler {
       const pendingTasks = await taskManager.getPendingTasks();
       
       // Process up to 5 pending tasks per cycle (only if they're not completed)
-      for (const task of pendingTasks.slice(0, 5)) {
-        // Skip if task is already completed
-        if (task.dimensions?.status === 'completed') {
-          continue;
-        }
-        // Try to assign an agent to the task
-        await taskManager.assignAgentToTask(task.id);
-      }
+      // Process them in parallel to respect dependencies, each task checks its own dependencies
+      const taskPromises = pendingTasks
+        .slice(0, 5)
+        .filter(task => task.dimensions?.status !== 'completed')
+        .map(async (task) => {
+          try {
+            // Each task's assignAgentToTask checks its own dependencies
+            // So we can safely process multiple tasks in parallel
+            await taskManager.assignAgentToTask(task.id);
+          } catch (error) {
+            console.error(`[Scheduler] Error assigning agent to task ${task.id}:`, error);
+          }
+        });
+      
+      // Process pending tasks in parallel
+      await Promise.allSettled(taskPromises);
       
       // Also check tasks that might have outputs but aren't marked as completed
       // This handles cases where assigned_agents wasn't set but outputs exist
@@ -102,10 +110,17 @@ export class JobScheduler {
       
       const tasksToCheck = [...assignedTasks, ...workingTasks];
       
-      for (const task of tasksToCheck) {
-        // Re-check completion in case outputs exist but task wasn't marked complete
-        await checkTaskCompletion(task.id);
-      }
+      // Check task completion in parallel
+      const completionPromises = tasksToCheck.map(async (task) => {
+        try {
+          // Re-check completion in case outputs exist but task wasn't marked complete
+          await checkTaskCompletion(task.id);
+        } catch (error) {
+          console.error(`[Scheduler] Error checking completion for task ${task.id}:`, error);
+        }
+      });
+      
+      await Promise.allSettled(completionPromises);
       
       // Also periodically check all goals to see if all tasks are complete
       // This ensures WeSpeaker is triggered even if a task completion check was missed
